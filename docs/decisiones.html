@@ -1,0 +1,141 @@
+<title>Decisiones Bolas Crush</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Karla:wght@400;600&display=swap">
+<style>
+/* Layout: columna única de lectura; plan arriba, tarjetas de decisión debajo */
+:root{
+  --bg:#FAF6F0; --surface:#FFFFFF; --ink:#22293A; --muted:#5C6474; --line:#E7DFD2;
+  --navy:#001B41; --blue:#1E73BE; --gold:#C9A24B; --fresa:#F58EA8; --pista:#9CCC8C; --mango:#FFB84D;
+  --ok:#3E8E5A; --sel:#E9F2FB;
+  --display:"Fredoka",ui-rounded,system-ui,sans-serif; --body:"Karla",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0B1628; --surface:#12213A; --ink:#EEF1F6; --muted:#A3AEC2; --line:#22324F;
+  --navy:#CFE0F5; --blue:#6FB0EC; --gold:#E0C27A; --sel:#18304F; --ok:#7CCB95; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B1628; --surface:#12213A; --ink:#EEF1F6; --muted:#A3AEC2; --line:#22324F;
+  --navy:#CFE0F5; --blue:#6FB0EC; --gold:#E0C27A; --sel:#18304F; --ok:#7CCB95; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--body)}
+.wrap{max-width:760px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:28px}
+h1,h2,h3{font-family:var(--display);color:var(--navy);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:2.2rem;font-weight:700}
+h2{font-size:1.4rem;font-weight:600}
+h3{font-size:1.1rem;font-weight:600}
+p{margin:0}
+.dots{display:flex;gap:6px;margin-bottom:10px}
+.dots i{width:16px;height:16px;border-radius:50%;display:block}
+.lead{color:var(--muted);max-width:62ch}
+.fases{display:grid;gap:10px;margin:0;padding:0;list-style:none;counter-reset:f -1}
+.fases li{display:grid;grid-template-columns:2rem 1fr;gap:10px;counter-increment:f}
+.fases li::before{content:counter(f);font-family:var(--display);font-weight:600;color:var(--blue);font-size:1.2rem}
+.fases b{color:var(--navy)}
+.tag{font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.dec{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
+.hoy{color:var(--muted);font-size:.95rem}
+.ops{display:grid;gap:8px}
+.op{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.op:has(input:checked){border-color:var(--blue);background:var(--sel)}
+.op input{margin-top:4px;accent-color:var(--blue)}
+.op small{display:block;color:var(--muted)}
+.rec{font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ok);font-weight:600;margin-left:6px}
+textarea{width:100%;box-sizing:border-box;min-height:56px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{font:600 .95rem var(--body);padding:9px 16px;border-radius:999px;border:0;background:var(--blue);color:#fff;cursor:pointer}
+button:focus-visible,textarea:focus-visible,.op:focus-within{outline:2px solid var(--gold);outline-offset:2px}
+.estado{font-size:.88rem;color:var(--muted)}
+.estado.ok{color:var(--ok)}
+.aviso{font-size:.9rem;color:var(--muted);border-left:3px solid var(--gold);padding-left:10px}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="dots" aria-hidden="true"><i style="background:var(--fresa)"></i><i style="background:var(--mango)"></i><i style="background:#F9D423"></i><i style="background:var(--pista)"></i><i style="background:#7B4A2E"></i><i style="background:#8E44AD"></i></div>
+    <h1>Bolas Crush</h1>
+    <p class="lead">El tercer juego de Bolas: un Candy Crush con las mismas reglas, combos y ritmo, pero con bolas de helado de verdad, las tiendas de Sevilla como episodios y el equipo hablando en andaluz.</p>
+  </header>
+
+  <section style="display:grid;gap:12px">
+    <h2>El plan, en corto</h2>
+    <p class="lead">Primera versión para que lo pruebes: el episodio 1 (tienda de Herbolarios) con 15 niveles jugables en el móvil.</p>
+    <ol class="fases">
+      <li><div><b>Arranque.</b> Proyecto nuevo, igual que los otros dos juegos (Vite + TypeScript), con los datos reales de Bolas enlazados.</div></li>
+      <li><div><b>Motor.</b> Las reglas de Candy Crush sin dibujos: tríos, bolas especiales, combos, caída, barajado y puntos. Con pruebas automáticas.</div></li>
+      <li><div><b>Que se sienta Candy Crush.</b> Animaciones con sus tiempos, explosiones de color, temblor en los combos y sonidos.</div></li>
+      <li><div><b>Niveles 1-15 y mapa.</b> Objetivos de puntos, limpiar el mostrador, bajar carapinas y pedidos. Escarcha y candados. Mapa con la Giralda y compañía.</div></li>
+      <li><div><b>El equipo.</b> Rocío te enseña a jugar, Marcos te trae los pedidos, y todos te jalean: «¡Ole!», «¡Qué arte!», «¡BOLAZO!».</div></li>
+      <li><div><b>Revisión.</b> Lo pruebo en el navegador y te paso página de cambios con capturas y enlace para jugar.</div></li>
+    </ol>
+    <p class="aviso">De Candy Crush copio reglas, tiempos y curva de dificultad. El arte, los sonidos y los nombres son nuestros, así no hay problemas con King.</p>
+  </section>
+
+  <section style="display:grid;gap:14px">
+    <h2>Lo que necesito que decidas</h2>
+    <p class="lead">Marca una opción en cada una (la recomendada ya viene marcada), añade nota si quieres y pulsa Guardar. Con eso arranco.</p>
+    <div id="lista" style="display:grid;gap:14px"></div>
+  </section>
+</div>
+
+<script>
+const DEC=[
+ {id:"motor",t:"¿Con qué se dibuja el juego?",hoy:"El Overcooked usa Three.js (3D) y el Imperio usa SVG y CSS.",ops:[
+  ["pixi","PixiJS (2D rápido)","Lo que mejor imita las animaciones y explosiones de Candy Crush en el móvil.",1],
+  ["dom","SVG + CSS como el Imperio","Sin librerías nuevas, pero las explosiones y cascadas largas van peor."],
+  ["three","Three.js como el Overcooked","Bolas en 3D. Más bonito, más lento de hacer."]]},
+ {id:"sabores",t:"¿Qué 6 sabores son las 6 fichas?",hoy:"Candy Crush tiene rojo, naranja, amarillo, verde, azul y morado. Bolas tiene unos 140 sabores en la carta.",ops:[
+  ["clasico","Fresa, Mango, Limón, Pistacho, Chocolate Belga y Mora","Colores muy distintos entre sí. La mora está por confirmar en la carta.",1],
+  ["sevilla","Fresa, Mango, Limón, Pistacho, Turrón y Feria (rebujito)","Más sevillano, pero turrón y feria se parecen de color."],
+  ["tu","Los elijo yo","Escríbelos en la nota."]]},
+ {id:"niveles",t:"¿Los niveles son calcados a Candy Crush?",hoy:"Los tableros de King tienen derechos de autor; las reglas no.",ops:[
+  ["propios","Niveles propios con la misma curva","Mismos objetivos, movimientos y dificultad que sus primeros 15, con tableros nuestros.",1],
+  ["calcados","Calcados a los de Candy Crush","Más fiel, pero arriesgado si el juego se publica."]]},
+ {id:"vidas",t:"¿Hay vidas como en Candy Crush?",hoy:"Candy Crush: 5 vidas, una cada 30 minutos. El Imperio de Bolas: nunca se pierde y nunca hay prisa.",ops:[
+  ["sin","Sin vidas: si pierdes, repites cuando quieras","Fiel a la filosofía Bolas y mejor para probar.",1],
+  ["cinco","5 vidas como Candy Crush","Más enganche, más frustración."]]},
+ {id:"fanny",t:"¿Quién es Fanny?",hoy:"Rocío, Marcos, Chema y Pablo salen en los otros juegos. Fanny no aparece en ningún documento de Bolas.",ops:[
+  ["tienda","Trabaja en tienda (atiende al público)","Sería quien te trae los pedidos de clientes.",1],
+  ["obrador","Trabaja en el obrador (hace el helado)","Sería quien explica los sabores especiales."],
+  ["otro","Otra cosa","Cuéntamelo en la nota (y quién más del equipo debería salir)."]]},
+ {id:"publicar",t:"¿Dónde lo pruebas?",hoy:"El Overcooked está en stagebolasgame.jcubo.com; el Imperio en Vercel.",ops:[
+  ["stage","Stage en jcubo, como el Overcooked","Enlace para el móvil y para el equipo. Repo nuevo en GitLab.",1],
+  ["local","Solo en la torre de momento","Lo más rápido; lo ves desde aquí."]]},
+ {id:"arte",t:"¿Cómo se dibujan las bolas de helado?",hoy:"El Imperio usa ilustraciones hechas con IA local (SDXL) y dibujos por código.",ops:[
+  ["codigo","Dibujadas por código","Rápido y nítido a cualquier tamaño. Para la v1.",1],
+  ["ia","Ilustradas con la IA local","Más bonitas, más tiempo. Puede venir en la v2."]]}
+];
+const lista=document.getElementById("lista");
+for(const d of DEC){
+  const el=document.createElement("article");el.className="dec";el.id="d-"+d.id;
+  el.innerHTML=`<span class="tag">Decisión</span><h3></h3><p class="hoy"></p><div class="ops"></div>
+   <textarea id="n-${d.id}" placeholder="Nota (opcional)"></textarea>
+   <div class="row"><button type="button">Guardar</button><span class="estado" aria-live="polite"></span></div>`;
+  el.querySelector("h3").textContent=d.t;
+  el.querySelector(".hoy").textContent="Hoy: "+d.hoy;
+  const ops=el.querySelector(".ops");
+  d.ops.forEach(([v,l,s,rec])=>{
+    const lab=document.createElement("label");lab.className="op";
+    lab.innerHTML=`<input type="radio" name="r-${d.id}" id="r-${d.id}-${v}" value="${v}"${rec?" checked":""}><span><strong></strong>${rec?'<span class="rec">Recomendada</span>':""}<small></small></span>`;
+    lab.querySelector("strong").textContent=l;lab.querySelector("small").textContent=s;
+    ops.appendChild(lab);
+  });
+  lista.appendChild(el);
+}
+const estado=(id,txt,ok)=>{const e=document.querySelector(`#d-${id} .estado`);e.textContent=txt;e.classList.toggle("ok",!!ok)};
+(async()=>{
+  const db=window.claude?await window.claude.use("db"):null;
+  for(const d of DEC){
+    const btn=document.querySelector(`#d-${d.id} button`);
+    if(!db){btn.disabled=true;estado(d.id,"Abre la página en claude.ai para poder guardar.");continue;}
+    const ref=db.doc("decisiones/"+d.id);
+    try{const s=await ref.get();if(s.exists){const v=s.data();
+      const r=document.getElementById(`r-${d.id}-${v.opcion}`);if(r)r.checked=true;
+      document.getElementById("n-"+d.id).value=v.nota||"";estado(d.id,"Guardado",true);}}catch(e){}
+    btn.addEventListener("click",async()=>{
+      const sel=document.querySelector(`input[name="r-${d.id}"]:checked`);
+      btn.disabled=true;estado(d.id,"Guardando…");
+      try{await ref.set({opcion:sel?sel.value:"",nota:document.getElementById("n-"+d.id).value.trim(),ts:new Date().toISOString()});estado(d.id,"Guardado",true);}
+      catch(e){estado(d.id,"No se pudo guardar. Vuelve a pulsar Guardar.");}
+      btn.disabled=false;
+    });
+  }
+})();
+</script>

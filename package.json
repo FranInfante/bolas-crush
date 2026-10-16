@@ -1,0 +1,22 @@
+{
+  "name": "bolas-crush",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Match-3 de Heladerías Bolas (Sevilla) al estilo Candy Crush",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2"
+  },
+  "dependencies": {
+    "pixi.js": "^8.22.0"
+  }
+}
