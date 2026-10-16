@@ -18,9 +18,11 @@ interface Tw { el: number; dur: number; fn: (v: number) => void; e: Ease; fin: (
 
 export class Tweens {
   private lista: Tw[] = [];
+  /** Multiplicador de tiempo (×3 al tocar durante el BOLAZO). */
+  velocidad = 1;
 
   constructor(ticker: Ticker) {
-    ticker.add((t) => this.paso(Math.min(t.deltaMS, 64)));
+    ticker.add((t) => this.paso(Math.min(t.deltaMS, 64) * this.velocidad));
   }
 
   /** Llama a fn(0..1 suavizado) durante `dur` ms, tras `delay` ms. */

@@ -55,6 +55,7 @@ export class VistaTablero extends Container {
   private down: { p: Pos; x: number; y: number } | null = null;
   private pista: Vis[] = [];
   private reloj = 0;
+  private enBolazo = false;
 
   constructor(partida: Partida, tx: Texturas, tw: Tweens, au: Sonido, gan: Ganchos, ticker: Ticker) {
     super();
@@ -133,7 +134,7 @@ export class VistaTablero extends Container {
         else if (v.key !== claveFicha(ce.ficha)) { v.s.texture = this.tx.ficha(ce.ficha); v.key = claveFicha(ce.ficha); }
         v.p = p; v.s.position.set(q.x, q.y); v.s.scale.set(ESC); v.s.rotation = 0; v.s.alpha = 1;
       }
-      this.ajustar(this.manchas, this.capaManchas, kk, ce.mancha, (n) => this.tx.mancha(), q, n => (n === 1 ? 0.5 : 0.8), 1);
+      this.ajustar(this.manchas, this.capaManchas, kk, ce.mancha, (n) => this.tx.mancha(n as 1 | 2), q, () => 1, 1);
       this.ajustar(this.escarchas, this.capaEscarcha, kk, ce.escarcha, (n) => this.tx.escarcha(n as 1 | 2), q, () => 1, 1);
       this.ajustar(this.candados, this.capaEscarcha, kk, ce.candado ? 1 : 0, () => this.tx.candado(), { x: q.x + 18, y: q.y - 16 }, () => 1, 0.7);
     });
@@ -157,6 +158,7 @@ export class VistaTablero extends Container {
 
   private alBajar(l: { x: number; y: number }): void {
     this.alTocar();
+    if (this.enBolazo) this.tw.velocidad = 3; // un toque acelera el BOLAZO ×3
     if (this.bloqueado) return;
     const p = this.celdaEn(l);
     if (!p) { this.seleccionar(null); return; }
@@ -214,8 +216,35 @@ export class VistaTablero extends Container {
 
   // ------------------------------------------------------------------ animación
 
+  /**
+   * Anima los pasos en orden, pero lo que ocurre entre dos caídas va en un «lote»: las detonaciones
+   * arrancan escalonadas (70 ms) y se solapan, y cada eliminación sigue a su detonación.
+   */
   async animar(pasos: Paso[]): Promise<void> {
-    for (const p of pasos) await this.paso(p);
+    let ESCALON = 70;
+    let lote: Promise<void>[] = [];
+    let sig = 0, crear = 0, ultimo = 0, nDet = 0;
+    const soltar = async () => { await Promise.all(lote); lote = []; sig = crear = ultimo = nDet = 0; };
+    const lanzar = (ms: number, p: Paso) => { lote.push(ms <= 0 ? this.paso(p) : this.tw.espera(ms).then(() => this.paso(p))); };
+    try {
+      for (const p of pasos) {
+        switch (p.tipo) {
+          case 'detonar': {
+            ultimo = Math.max(nDet ? sig + ESCALON : sig, crear);
+            sig = ultimo; nDet++; crear = 0;
+            lanzar(ultimo, p);
+            break;
+          }
+          case 'eliminar': lanzar(nDet ? ultimo + 120 : sig, p); break;
+          case 'crearEspecial': lanzar(sig, p); crear = Math.max(crear, sig + 230); break;
+          case 'mancha': case 'escarcha': case 'candado': case 'carapinaFuera': lanzar(nDet ? ultimo + 120 : sig, p); break;
+          case 'bolazo': void this.paso(p); sig = 300; ESCALON = 45; break; // el letrero corre aparte
+          case 'jaleo': void this.paso(p); break;
+          default: await soltar(); await this.paso(p); // intercambio, invalido, caer, barajar, fin
+        }
+      }
+      await soltar();
+    } finally { this.tw.velocidad = 1; this.enBolazo = false; }
   }
 
   private async paso(p: Paso): Promise<void> {
@@ -225,7 +254,7 @@ export class VistaTablero extends Container {
       case 'eliminar': return this.eliminar(p);
       case 'crearEspecial': return this.crearEspecial(p.pos, p.ficha);
       case 'detonar': return this.detonar(p);
-      case 'mancha': this.quitarCapa(this.manchas, p.pos, p.quedan, 0xff7fa8, () => 0.5 + (p.quedan - 1) * 0.3); return;
+      case 'mancha': this.quitarCapa(this.manchas, p.pos, p.quedan, 0xff7fa8, () => 1, (n) => this.tx.mancha(n as 1 | 2)); return;
       case 'escarcha': this.quitarCapa(this.escarchas, p.pos, p.quedan, 0xbfe9ff, () => 1, (n) => this.tx.escarcha(n as 1 | 2)); return;
       case 'candado': this.quitarCapa(this.candados, p.pos, 0, 0xffc83d, () => 1); this.au.crear(); return;
       case 'carapinaFuera': return this.carapinaFuera(p.id);
@@ -447,6 +476,7 @@ export class VistaTablero extends Container {
 
   /** Letrero lo pone la escena; aquí cae la lluvia de rayas. */
   private async bolazo(): Promise<void> {
+    this.enBolazo = true;
     this.au.fanfarria();
     this.gan.agitar(6);
     const cols = [0xe8344e, 0xff8a1f, 0xffd92e, 0x5bbf3b, 0x2f6fde, 0x7b3fb5];

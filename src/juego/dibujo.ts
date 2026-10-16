@@ -217,12 +217,15 @@ export class Texturas {
     });
   }
 
-  mancha(): Texture {
-    return this.gen('mancha', CELDA, (c) => {
+  /** Gelatina rosa que cubre toda la casilla: 2 capas = más opaca y con borde más marcado. */
+  mancha(capas: 1 | 2 = 1): Texture {
+    return this.gen(`man${capas}`, CELDA, (c) => {
       const g = new Graphics();
-      g.roundRect(4, 4, 56, 56, 20).fill(0xff7fa8);
-      for (const [x, y, r] of [[8, 30, 7], [56, 22, 8], [30, 6, 6], [36, 58, 7]]) g.circle(x, y, r).fill(0xff7fa8);
-      g.ellipse(22, 18, 10, 5).fill({ color: 0xffffff, alpha: 0.4 });
+      const dos = capas === 2;
+      g.roundRect(1, 1, 62, 62, 12).fill({ color: 0xff4f8b, alpha: dos ? 0.78 : 0.5 }).stroke({ width: dos ? 4 : 2, color: dos ? 0xd81b60 : 0xff9ec1, alpha: dos ? 1 : 0.9 });
+      g.roundRect(7, 7, 50, 50, 9).fill({ color: 0xff8fb5, alpha: dos ? 0.45 : 0.25 });
+      g.ellipse(20, 15, 12, 5).fill({ color: 0xffffff, alpha: 0.55 });
+      g.circle(51, 50, 3).fill({ color: 0xffffff, alpha: 0.4 });
       c.addChild(g);
     });
   }

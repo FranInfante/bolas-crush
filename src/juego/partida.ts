@@ -231,7 +231,7 @@ export class EscenaPartida implements Escena {
   }
 
   private async letreroBolazo(): Promise<void> {
-    await this.grande(BOLAZO, 110, 0xff5a6e, 1300, -0.1);
+    await this.grande(BOLAZO, 110, 0xff5a6e, 1000, -0.1);
   }
 
   private grande(texto: string, size: number, color: number, dur: number, rot: number): Promise<void> {
