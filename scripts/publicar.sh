@@ -5,7 +5,7 @@ set -euo pipefail
 [ "$(git branch --show-current)" = stage ] || { echo "Ponte en la rama stage" >&2; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "Hay cambios sin guardar" >&2; exit 1; }
 npm test >/dev/null
-npm run build -- --base=/bolas-crush/
+npm run build -- --base=./
 SHA=$(git rev-parse --short HEAD)
 DIR=$(mktemp -d)
 trap 'git worktree remove --force "$DIR" 2>/dev/null || true' EXIT
