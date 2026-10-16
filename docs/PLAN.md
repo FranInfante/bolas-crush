@@ -60,4 +60,4 @@ Página: https://claude.ai/artifact/HBMGGsFV9Ziv1WicnoQMf5
 - **Cuenta común:** monedas y recompensas irán a la misma cuenta (email) que Imperio y Overcooked, en la app de cliente de Bolas. Hoy en localStorage, aisladas en `src/juego/ui.ts`.
 - 17-10: nivel 15 ajustado a 17 movimientos (bot gana 43 %, meta 45 %; `calibrar.ts --auto --nivel=15 --mov=17 --n=400`).
 - Respuestas de Fran en la página de cambios: **ninguna aún** (colección `respuestas` vacía a 17-10 00:30). Cuando conteste, sus «Hay que cambiarlo» + nota son el siguiente encargo y se copian aquí como criterio.
-- Pendiente: stage en jcubo cuando Fran lo pida.
+- 17-10: Fran: «el juego me parece buenisimo solo hay que desplegarlo gratis». Stage publicado en GitHub Pages (repo público FranInfante/bolas-crush, `bash scripts/publicar.sh` desde la rama stage) en vez de jcubo: jcubo pide montar dominio y script con root en el servidor. prod, con su Vale.
