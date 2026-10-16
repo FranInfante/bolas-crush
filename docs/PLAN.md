@@ -53,3 +53,8 @@ Página: https://claude.ai/artifact/HBMGGsFV9Ziv1WicnoQMf5
 5. **Fanny trabaja en tienda** y trae los pedidos de clientes.
 6. Publicar en **stage jcubo** como el Overcooked (repo nuevo en GitLab).
 7. Bolas **dibujadas por código** en la v1.
+
+## Estado (16-10-2026, 23:30)
+- Hecho: motor (60 tests), datos y 15 niveles, render PixiJS con animaciones y sonido, fondos pintados de Sevilla (SDXL local, `public/arte/`), ritmo de combos/BOLAZO ≤ 6 s, manchas tipo gelatina.
+- **Pendiente:** recalibrar dificultad. `scripts/calibrar.ts` hace trampa: el bot clona la Partida con su azar y ve los rellenos futuros, por eso saca 300.000 puntos en el nivel 1. Los valores actuales de `niveles.ts` NO valen.
+- Pendiente: página de cambios con capturas para Fran; luego stage en jcubo (cuando lo pida).
