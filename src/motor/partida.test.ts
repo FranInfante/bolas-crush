@@ -456,3 +456,14 @@ test('partidas completas con jugadas automáticas respetan las invariantes', () 
     }
   }
 });
+
+test('potenciadores previos: ponen raya, tarrina y bola Bolas sin crear tríos', () => {
+  const p = new Partida({ id: 0, nombre: 't', forma: ['ooooo', 'ooooo', 'ooooo', 'ooooo', 'ooooo'], sabores: 5, movimientos: 20, objetivo: { tipo: 'puntos' }, estrellas: [1, 2, 3], semilla: 7 });
+  p.ponerPotenciadores(['rayaH', 'tarrina', 'bolaBolas']);
+  const esp = p.tablero.flat().map((c) => c.ficha!).filter((f) => f.especial !== 'ninguno');
+  assert.equal(esp.length, 3);
+  assert.ok(esp.some((f) => f.especial === 'rayaH' || f.especial === 'rayaV'));
+  assert.ok(esp.some((f) => f.especial === 'tarrina'));
+  assert.ok(esp.some((f) => f.especial === 'bolaBolas' && f.sabor === -1));
+  assert.equal(hayTrios(p), false);
+});

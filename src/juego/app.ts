@@ -1,6 +1,6 @@
 // Aplicación: arranque de Pixi, fondo, escalado a cualquier pantalla, cambio de escena y depuración.
 import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
-import type { Partida } from '../motor/index.ts';
+import type { Especial, Partida } from '../motor/index.ts';
 import { EPISODIO_1 } from '../datos/niveles.ts';
 import { Sonido } from './audio.ts';
 import { Texturas } from './dibujo.ts';
@@ -137,11 +137,11 @@ export class Juego {
     if (n) this.poner(new EscenaFicha(this, n));
   }
 
-  irPartida(id: number): void {
+  irPartida(id: number, potenciadores: Especial[] = []): void {
     const n = EPISODIO_1.niveles.find((x) => x.id === id);
     if (!n) return;
     this.nivelActual = id;
-    const e = new EscenaPartida(this, n);
+    const e = new EscenaPartida(this, n, potenciadores);
     this.escena?.destroy();
     this.root.removeChildren();
     this.escena = e;

@@ -52,23 +52,54 @@ export function panel(w: number, h: number, alfa = 0.55): Graphics {
 export const fmt = (n: number): string => Math.round(n).toLocaleString('es-ES');
 
 // ---------------------------------------------------------------- progreso guardado
+// ponytail: localStorage del navegador. Las monedas y recompensas irán a la cuenta común de Bolas (mismo email en
+// Crush, Imperio y Overcooked, app de cliente): cuando exista, solo cambia esta sección.
 const CLAVE = 'bolas-crush-progreso-v1';
-export interface Guardado { estrellas: number[]; desbloqueado: number }
+export interface Guardado { estrellas: number[]; desbloqueado: number; monedas: number }
 const total = EPISODIO_1.niveles.length;
+const MONEDAS_INICIO = 60; // regalo de bienvenida para poder probar la tienda
 
 export function cargarProgreso(): Guardado {
   try {
     const j = JSON.parse(localStorage.getItem(CLAVE) ?? 'null');
-    if (j && Array.isArray(j.estrellas) && typeof j.desbloqueado === 'number') return { estrellas: j.estrellas, desbloqueado: Math.min(total, Math.max(1, j.desbloqueado)) };
+    if (j && Array.isArray(j.estrellas) && typeof j.desbloqueado === 'number') {
+      return { estrellas: j.estrellas, desbloqueado: Math.min(total, Math.max(1, j.desbloqueado)), monedas: typeof j.monedas === 'number' ? j.monedas : MONEDAS_INICIO };
+    }
   } catch { /* sin almacenamiento o datos rotos */ }
-  return { estrellas: [], desbloqueado: 1 };
+  return { estrellas: [], desbloqueado: 1, monedas: MONEDAS_INICIO };
 }
 
-/** Guarda el mejor resultado y desbloquea el siguiente nivel. */
+function guardar(g: Guardado): void {
+  try { localStorage.setItem(CLAVE, JSON.stringify(g)); } catch { /* ignorar */ }
+}
+
+/** Monedas por ganar un nivel: 10 + 10 por estrella. */
+export const monedasPorGanar = (estrellas: number): number => 10 + 10 * estrellas;
+
+/** Guarda el mejor resultado, suma las monedas y desbloquea el siguiente nivel. */
 export function guardarResultado(nivelId: number, estrellas: number): Guardado {
   const g = cargarProgreso();
   g.estrellas[nivelId - 1] = Math.max(g.estrellas[nivelId - 1] ?? 0, estrellas);
   g.desbloqueado = Math.max(g.desbloqueado, Math.min(total, nivelId + 1));
-  try { localStorage.setItem(CLAVE, JSON.stringify(g)); } catch { /* ignorar */ }
+  g.monedas += monedasPorGanar(estrellas);
+  guardar(g);
   return g;
+}
+
+/** Resta monedas si llegan; devuelve si se pudo pagar. */
+export function gastarMonedas(n: number): boolean {
+  const g = cargarProgreso();
+  if (g.monedas < n) return false;
+  g.monedas -= n;
+  guardar(g);
+  return true;
+}
+
+/** Moneda dibujada (dorada con la B de Bolas). */
+export function moneda(r: number): Container {
+  const c = new Container();
+  c.addChild(new Graphics().circle(0, 0, r).fill(0xffc21a).stroke({ width: Math.max(2, r * 0.18), color: 0x9a5b00 }));
+  const b = txt('B', r * 1.2, 0x9a5b00, { fontWeight: '900' });
+  c.addChild(b);
+  return c;
 }

@@ -26,4 +26,6 @@ export const TEXTOS = {
   objetivoManchas: 'Limpia todas las manchas del mostrador',
   objetivoCarapinas: (n: number) => `Baja ${n} carapina${n === 1 ? '' : 's'} al congelador`,
   objetivoPedido: 'Sirve el pedido de la clienta',
+  potenciadores: 'Potenciadores (empiezas con ellos en el tablero)',
+  monedasGanadas: (n: number) => `+${n} monedas`,
 } as const;

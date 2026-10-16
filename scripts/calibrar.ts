@@ -1,6 +1,6 @@
 // Calibra niveles con un bot voraz: node scripts/calibrar.ts [--n=200] [--nivel=3] [--auto] [--escribir]
 //  sin --auto: mide los niveles tal cual están en src/datos/niveles.ts
-//  --auto: busca los movimientos mínimos que dan la tasa objetivo y fija estrellas (2ª = p60, 3ª = p90)
+//  --auto: busca los movimientos mínimos (15-35) que dan la tasa objetivo y fija estrellas (2ª = p60, 3ª = p90)
 //  --escribir: reescribe movimientos y estrellas en niveles.ts (con --auto)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Partida, crearAzar } from '../src/motor/index.ts';
@@ -53,10 +53,11 @@ function jugar(n: Nivel): { gano: boolean; puntos: number } {
   while (p.estado === 'jugando') {
     let mejor: [Pos, Pos] | null = null, mf = Infinity, mp = -1;
     for (const [a, b] of jugadas(p)) {
-      const q = copiar(p);
-      q.intercambiar(a, b);
-      const f = falta(q, n);
-      if (f < mf || (f === mf && q.puntos > mp)) { mf = f; mp = q.puntos; mejor = [a, b]; }
+      // Sin oráculo de ruido: promedia 3 clones con semillas distintas (falta y puntos) en vez de fiarse de un solo relleno.
+      let f = 0, pt = 0;
+      for (let k = 0; k < 3; k++) { const q = copiar(p); q.intercambiar(a, b); f += falta(q, n); pt += q.puntos; }
+      f /= 3; pt /= 3;
+      if (f < mf || (f === mf && pt > mp)) { mf = f; mp = pt; mejor = [a, b]; }
     }
     if (!mejor) break;
     p.intercambiar(mejor[0], mejor[1]);
@@ -90,9 +91,9 @@ for (const base of EPISODIO_1.niveles) {
   const puntos = base.objetivo.tipo === 'puntos';
   let mov = base.movimientos, m: Medida;
   if (AUTO && !puntos) {
-    // Movimientos mínimos (pasos de 1) con tasa de objetivo ≥ meta/0.97 (la estrella 1 se fija en p3 de los que ganan).
-    mov = 8;
-    for (;; mov++) { if (medir(base, mov, 50).tasaObj >= meta / 0.97 + 0.02 || mov >= 60) break; }
+    // Movimientos mínimos (pasos de 1, rango jugable 15-35) con tasa de objetivo ≥ meta/0.97 (la estrella 1 se fija en p3 de los que ganan).
+    mov = 15;
+    for (;; mov++) { if (medir(base, mov, 50).tasaObj >= meta / 0.97 + 0.02 || mov >= 35) break; }
   }
   m = medir(base, mov, N);
   let est = base.estrellas;
@@ -113,8 +114,8 @@ if (AUTO && ESCRIBIR) {
   const ruta = new URL('../src/datos/niveles.ts', import.meta.url);
   let src = readFileSync(ruta, 'utf8');
   for (const c of cambios) {
-    src = src.replace(new RegExp(`(id: ${c.id}, nombre: '[^']*', sabores: \d, movimientos: )\d+`), (_m, a) => `${a}${c.mov}`);
-    src = src.replace(new RegExp(`(id: ${c.id},[^\n]*?(?:\n[^\n]*?)?)estrellas: (?:est\(\d+\)|\[[^\]]*\])`), (_m, a) => `${a}estrellas: [${c.est.join(', ')}]`);
+    src = src.replace(new RegExp(String.raw`(id: ${c.id}, nombre: '[^']*', sabores: \d, movimientos: )\d+`), (_m, a) => `${a}${c.mov}`);
+    src = src.replace(new RegExp(String.raw`(id: ${c.id},[^\n]*?(?:\n[^\n]*?)?)estrellas: (?:est\(\d+\)|\[[^\]]*\])`), (_m, a) => `${a}estrellas: [${c.est.join(', ')}]`);
   }
   writeFileSync(ruta, src);
   console.log('niveles.ts actualizado');

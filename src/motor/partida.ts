@@ -97,6 +97,19 @@ export class Partida {
     return this.nivel.estrellas.filter((e) => this.puntos >= e).length as 0 | 1 | 2 | 3;
   }
 
+  /** Potenciadores previos al nivel (como en Candy Crush): convierte bolas normales al azar en esos especiales. */
+  ponerPotenciadores(especiales: Especial[]): void {
+    const libres: Celda[] = [];
+    this.recorrer((_, ce) => { if (ce.ficha?.tipo === 'bola' && ce.ficha.especial === 'ninguno' && !ce.candado) libres.push(ce); });
+    this.azar.barajar(libres);
+    especiales.forEach((esp, i) => {
+      const ce = libres[i];
+      if (!ce) return;
+      const e = esp === 'rayaH' || esp === 'rayaV' ? (this.azar.siguiente() < 0.5 ? 'rayaH' : 'rayaV') : esp;
+      ce.ficha = { ...ce.ficha!, especial: e, sabor: e === 'bolaBolas' ? -1 : ce.ficha!.sabor };
+    });
+  }
+
   /** Primer swap válido que encuentre (para la pista a los 5 s), o null si no hay jugadas. */
   pista(): [Pos, Pos] | null {
     for (let f = 0; f < this.filas; f++) for (let c = 0; c < this.cols; c++) {

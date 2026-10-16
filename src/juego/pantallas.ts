@@ -7,7 +7,15 @@ import { TEXTOS } from '../datos/frases.ts';
 import type { Juego, Escena } from './app.ts';
 import { estrella } from './dibujo.ts';
 import { ease } from './tween.ts';
-import { avatar, boton, cargarProgreso, DW, fmt, guardarResultado, panel, txt, txtBorde } from './ui.ts';
+import { avatar, boton, cargarProgreso, DW, fmt, gastarMonedas, guardarResultado, moneda, monedasPorGanar, panel, txt, txtBorde } from './ui.ts';
+import type { Especial } from '../motor/tipos.ts';
+
+/** Potenciadores previos al nivel (los de Candy Crush: rayado, envuelto y bomba de color), pagados con monedas. */
+const POTENCIADORES: { esp: Especial; nombre: string; precio: number }[] = [
+  { esp: 'rayaH', nombre: 'Sirope', precio: 30 },
+  { esp: 'tarrina', nombre: 'Tarrina', precio: 45 },
+  { esp: 'bolaBolas', nombre: 'Bola Bolas', precio: 70 },
+];
 
 const NIVELES = EPISODIO_1.niveles;
 const TRAMOS = ['tramo-1', 'tramo-2', 'tramo-3']; // Giralda, Torre del Oro, Setas (de abajo arriba)
@@ -107,7 +115,9 @@ export class EscenaMapa implements Escena {
     t.position.set(DW / 2, 26);
     const sub = txt(EPISODIO_1.tienda, 13, 0xffffff);
     sub.position.set(DW / 2, 50);
-    cab.addChild(fondoCab, t, sub);
+    const mon = moneda(12); mon.position.set(24, 31);
+    const mt = txtBorde(fmt(prog.monedas), 20, 0xffd92e); mt.anchor.set(0, 0.5); mt.position.set(42, 31);
+    cab.addChild(fondoCab, t, sub, mon, mt);
 
     // Arrastre vertical con dedo/ratón.
     const zona = new Graphics().rect(0, -3000, DW, 9000).fill({ color: 0xffffff, alpha: 0.001 });
@@ -159,6 +169,7 @@ export class EscenaMapa implements Escena {
 export class EscenaFicha implements Escena {
   readonly container = new Container();
   private tarjeta = new Container();
+  private marco = new Container();
 
   constructor(juego: Juego, nivel: Nivel) {
     const n = nivel;
@@ -167,7 +178,15 @@ export class EscenaFicha implements Escena {
     const tit = txtBorde(`Nivel ${n.id}`, 44, 0xffd92e); tit.position.set(0, -250);
     const nom = txt(n.nombre, 24, 0xffffff); nom.position.set(0, -205);
     nom.scale.set(Math.min(1, 340 / nom.width));
-    t.addChild(panel(w, 560, 0.78), tit, nom);
+    const fondoT = panel(w, 700, 0.78); fondoT.y = 30;
+    t.addChild(fondoT, tit, nom);
+
+    // Monedas del jugador (arriba a la derecha de la tarjeta).
+    let monedas = cargarProgreso().monedas;
+    const mon = new Container(); mon.position.set(w / 2 - 70, -300);
+    const mi = moneda(13); mi.position.set(-20, 0);
+    const mt = txtBorde(fmt(monedas), 22, 0xffd92e); mt.anchor.set(0, 0.5); mt.position.set(-2, 0);
+    mon.addChild(mi, mt); t.addChild(mon);
 
     // Objetivo
     const ob = n.objetivo;
@@ -199,18 +218,60 @@ export class EscenaFicha implements Escena {
     frase.anchor.set(0, 0.5); frase.position.set(-w / 2 + 126, 100);
     t.addChild(burbuja, nombre, frase, av);
 
-    const jugar = boton(TEXTOS.jugar, 240, 64, 0x3cb44b, () => { juego.au.clic(); juego.irPartida(n.id); }, 32);
-    jugar.position.set(0, 196);
+    const repintar: (() => void)[] = [];
+    // Tienda de potenciadores: tocar marca/desmarca; se paga al pulsar Jugar.
+    const capP = txt(TEXTOS.potenciadores, 13, 0xffd92e); capP.position.set(0, 164);
+    t.addChild(capP);
+    const elegidos = new Set<number>();
+    const coste = () => [...elegidos].reduce((s, i) => s + POTENCIADORES[i].precio, 0);
+    POTENCIADORES.forEach((pt, i) => {
+      const c = new Container(); c.position.set((i - 1) * 118, 214);
+      const fondo = new Graphics();
+      const pintar = () => {
+        const on = elegidos.has(i), llega = on || monedas - coste() >= pt.precio;
+        fondo.clear().roundRect(-52, -36, 104, 86, 14).fill({ color: on ? 0x3cb44b : 0x001b41, alpha: on ? 0.9 : 0.6 }).stroke({ width: 3, color: on ? 0xffffff : 0x2f6fde });
+        c.alpha = llega ? 1 : 0.45;
+      };
+      const s = new Sprite(juego.tx.bolaTex(pt.esp === 'bolaBolas' ? -1 : 0, pt.esp)); s.anchor.set(0.5); s.scale.set(0.45); s.position.set(0, -10);
+      const nm = txt(pt.nombre, 12, 0xffffff); nm.position.set(0, 22);
+      const pm = moneda(8); pm.position.set(-14, 39);
+      const pr = txt(String(pt.precio), 13, 0xffd92e, { fontWeight: '700' }); pr.anchor.set(0, 0.5); pr.position.set(-3, 39);
+      c.addChild(fondo, s, nm, pm, pr);
+      pintar();
+      c.eventMode = 'static'; c.cursor = 'pointer';
+      c.on('pointertap', () => {
+        if (elegidos.has(i)) elegidos.delete(i);
+        else if (monedas - coste() >= pt.precio) elegidos.add(i);
+        else return;
+        juego.au.clic();
+        repintar.forEach((f) => f());
+      });
+      repintar.push(pintar);
+      t.addChild(c);
+    });
+
+    const jugar = boton(TEXTOS.jugar, 240, 64, 0x3cb44b, () => {
+      juego.au.clic();
+      const pago = coste();
+      const esp = pago > 0 && gastarMonedas(pago) ? [...elegidos].map((i) => POTENCIADORES[i].esp) : [];
+      monedas = cargarProgreso().monedas;
+      juego.irPartida(n.id, esp);
+    }, 32);
+    jugar.position.set(0, 300);
     const volver = boton('‹ Mapa', 130, 44, 0x2f6fde, () => { juego.au.clic(); juego.irMapa(); }, 20);
-    volver.position.set(0, 252);
+    volver.position.set(0, 354);
     t.addChild(jugar, volver);
-    this.container.addChild(t);
+    this.marco.addChild(t);
+    this.container.addChild(this.marco);
     // Entra con rebote.
     t.scale.set(0.6);
     void juego.tw.to(320, (v) => { t.scale.set(0.6 + 0.4 * ease.outBack(v)); t.alpha = Math.min(1, v * 3); }, ease.lineal);
   }
 
-  layout(dh: number): void { this.tarjeta.position.set(DW / 2, dh / 2); }
+  layout(dh: number): void {
+    this.marco.scale.set(Math.min(1, dh / 760)); // en pantallas bajas la tarjeta encoge para caber entera
+    this.marco.position.set(DW / 2, dh / 2 - 30 * this.marco.scale.y);
+  }
   destroy(): void { this.container.destroy({ children: true }); }
 }
 
@@ -248,8 +309,14 @@ export function crearResultado(juego: Juego, nivel: Nivel, estado: 'ganado' | 'p
     estr.push(oro);
   }
 
-  const pts = txtBorde(fmt(puntos), 40, 0xffffff); pts.position.set(0, -4);
-  const pl = txt(TEXTOS.puntos, 14, 0xffd92e); pl.position.set(0, -34);
+  const pts = txtBorde(fmt(puntos), 40, 0xffffff); pts.position.set(0, -14);
+  if (ganado) {
+    const gm = new Container(); gm.position.set(0, 16);
+    const mt = txtBorde(TEXTOS.monedasGanadas(monedasPorGanar(estrellas)), 16, 0xffd92e); mt.anchor.set(0, 0.5);
+    const mi = moneda(9); mi.position.set(-mt.width / 2 - 4, 0); mt.position.set(-mt.width / 2 + 9, 0);
+    gm.addChild(mi, mt); c.addChild(gm);
+  }
+  const pl = txt(TEXTOS.puntos, 14, 0xffd92e); pl.position.set(0, -44);
   c.addChild(pl, pts);
 
   const av = avatar(pers, 30); av.position.set(-150, 62);

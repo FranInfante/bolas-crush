@@ -54,7 +54,8 @@ Página: https://claude.ai/artifact/HBMGGsFV9Ziv1WicnoQMf5
 6. Publicar en **stage jcubo** como el Overcooked (repo nuevo en GitLab).
 7. Bolas **dibujadas por código** en la v1.
 
-## Estado (16-10-2026, 23:30)
-- Hecho: motor (60 tests), datos y 15 niveles, render PixiJS con animaciones y sonido, fondos pintados de Sevilla (SDXL local, `public/arte/`), ritmo de combos/BOLAZO ≤ 6 s, manchas tipo gelatina.
-- **Pendiente:** recalibrar dificultad. `scripts/calibrar.ts` hace trampa: el bot clona la Partida con su azar y ve los rellenos futuros, por eso saca 300.000 puntos en el nivel 1. Los valores actuales de `niveles.ts` NO valen.
-- Pendiente: página de cambios con capturas para Fran; luego stage en jcubo (cuando lo pida).
+## Estado (17-10-2026, 00:30)
+- Hecho: motor (61 tests), 15 niveles recalibrados con bot honesto (tabla en `niveles.ts`; 15-31 movimientos), monedas y tienda de potenciadores (sirope 30, tarrina 45, bola Bolas 70; +10 y +10 por estrella al ganar), fondos de Sevilla, combos 1,5 s, BOLAZO 3,4 s.
+- Página de cambios v1: https://claude.ai/artifact/44vvrJUC4dfdz2xR34p8Q8 (esperando Vale de Fran).
+- **Cuenta común:** monedas y recompensas irán a la misma cuenta (email) que Imperio y Overcooked, en la app de cliente de Bolas. Hoy en localStorage, aisladas en `src/juego/ui.ts`.
+- Pendiente: nivel 15 algo fácil (59 % vs 45 %); stage en jcubo cuando Fran lo pida.

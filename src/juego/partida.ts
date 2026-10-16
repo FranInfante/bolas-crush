@@ -2,7 +2,7 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { Partida } from '../motor/index.ts';
 import type { Pos } from '../motor/tipos.ts';
-import type { Nivel } from '../motor/tipos.ts';
+import type { Especial, Nivel } from '../motor/tipos.ts';
 import { BOLAZO, JALEO, TEXTOS } from '../datos/frases.ts';
 import type { Juego, Escena } from './app.ts';
 import { VistaTablero } from './vista.ts';
@@ -40,11 +40,12 @@ export class EscenaPartida implements Escena {
   private maxPuntos: number;
   private objetivoTxt: Text[] = [];
 
-  constructor(juego: Juego, nivel: Nivel) {
+  constructor(juego: Juego, nivel: Nivel, potenciadores: Especial[] = []) {
     this.juego = juego;
     this.nivel = nivel;
     this.partida = new Partida(nivel);
     this.partida.asegurarJugada(); // por si el tablero inicial no tuviera jugada
+    this.partida.ponerPotenciadores(potenciadores);
     this.movs = this.partida.movimientosRestantes;
     this.maxPuntos = nivel.estrellas[2] * 1.12;
 
