@@ -58,4 +58,6 @@ Página: https://claude.ai/artifact/HBMGGsFV9Ziv1WicnoQMf5
 - Hecho: motor (61 tests), 15 niveles recalibrados con bot honesto (tabla en `niveles.ts`; 15-31 movimientos), monedas y tienda de potenciadores (sirope 30, tarrina 45, bola Bolas 70; +10 y +10 por estrella al ganar), fondos de Sevilla, combos 1,5 s, BOLAZO 3,4 s.
 - Página de cambios v1: https://claude.ai/artifact/44vvrJUC4dfdz2xR34p8Q8 (esperando Vale de Fran).
 - **Cuenta común:** monedas y recompensas irán a la misma cuenta (email) que Imperio y Overcooked, en la app de cliente de Bolas. Hoy en localStorage, aisladas en `src/juego/ui.ts`.
-- Pendiente: nivel 15 algo fácil (59 % vs 45 %); stage en jcubo cuando Fran lo pida.
+- 17-10: nivel 15 ajustado a 17 movimientos (bot gana 43 %, meta 45 %; `calibrar.ts --auto --nivel=15 --mov=17 --n=400`).
+- Respuestas de Fran en la página de cambios: **ninguna aún** (colección `respuestas` vacía a 17-10 00:30). Cuando conteste, sus «Hay que cambiarlo» + nota son el siguiente encargo y se copian aquí como criterio.
+- Pendiente: stage en jcubo cuando Fran lo pida.

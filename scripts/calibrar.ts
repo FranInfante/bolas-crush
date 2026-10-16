@@ -1,4 +1,4 @@
-// Calibra niveles con un bot voraz: node scripts/calibrar.ts [--n=200] [--nivel=3] [--auto] [--escribir]
+// Calibra niveles con un bot voraz: node scripts/calibrar.ts [--n=200] [--nivel=3] [--auto] [--mov=17] [--escribir]
 //  sin --auto: mide los niveles tal cual están en src/datos/niveles.ts
 //  --auto: busca los movimientos mínimos (15-35) que dan la tasa objetivo y fija estrellas (2ª = p60, 3ª = p90)
 //  --escribir: reescribe movimientos y estrellas en niveles.ts (con --auto)
@@ -90,7 +90,8 @@ for (const base of EPISODIO_1.niveles) {
   const meta = OBJETIVO_TASA(base.id);
   const puntos = base.objetivo.tipo === 'puntos';
   let mov = base.movimientos, m: Medida;
-  if (AUTO && !puntos) {
+  if (AUTO && arg('mov')) mov = Number(arg('mov'));
+  else if (AUTO && !puntos) {
     // Movimientos mínimos (pasos de 1, rango jugable 15-35) con tasa de objetivo ≥ meta/0.97 (la estrella 1 se fija en p3 de los que ganan).
     mov = 15;
     for (;; mov++) { if (medir(base, mov, 50).tasaObj >= meta / 0.97 + 0.02 || mov >= 35) break; }

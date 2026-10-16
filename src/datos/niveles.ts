@@ -16,7 +16,7 @@ import type { Nivel } from '../motor/tipos.ts';
 //  12 | 26 | 59300 / 74400 / 101000 | 67% | 67960
 //  13 | 15 | 32900 / 46500 / 55900 | 86% | 43560
 //  14 | 18 | 6100 / 11900 / 15900 | 62% | 10780
-//  15 | 18 | 42500 / 52200 / 59400 | 59% | 50940
+//  15 | 17 | 39900 / 50700 / 58400 | 43% | 49160
 // Sabores por índice: 0 Fresa, 1 Mango, 2 Limón, 3 Pistacho, 4 Chocolate Belga, 5 Mora.
 
 // Niveles de puntos (1-3, 11, 12): 1ª estrella = p15 de un jugador que mueve al azar (la saca casi cualquiera; en 1-3, tutorial, la mitad),
@@ -97,7 +97,7 @@ export const EPISODIO_1: { nombre: string; tienda: string; niveles: Nivel[] } = 
       presenta: { quien: 'fanny', texto: 'Mi arma, esta clienta es de las exigentes: mango, chocolate belga y mora, catorce de cada.' },
     },
     {
-      id: 15, nombre: 'El gran pedido de Herbolarios', sabores: 6, movimientos: 18, semilla: 115, objetivo: { tipo: 'manchas' }, estrellas: [42500, 52200, 59400],
+      id: 15, nombre: 'El gran pedido de Herbolarios', sabores: 6, movimientos: 17, semilla: 115, objetivo: { tipo: 'manchas' }, estrellas: [39900, 50700, 58400],
       forma: ['.ooooooo.', 'oMMoooMMo', 'oMMMoMMMo', 'ooMMMMMoo', 'oommMmmoo', 'ooooooooo', 'ooooooooo', 'EEEoooEEE'],
       presenta: { quien: 'pablo', texto: 'Inspección de fin de episodio. Mostrador doble y escarcha gorda. Sin excusas.' },
     },
