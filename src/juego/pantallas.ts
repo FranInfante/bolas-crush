@@ -10,12 +10,12 @@ import { ease } from './tween.ts';
 import { avatar, boton, cargarProgreso, DW, fmt, guardarResultado, panel, txt, txtBorde } from './ui.ts';
 
 const NIVELES = EPISODIO_1.niveles;
-const HITOS = ['giralda', 'torredeloro', 'setas', 'puente', 'mercado'];
+const TRAMOS = ['tramo-1', 'tramo-2', 'tramo-3']; // Giralda, Torre del Oro, Setas (de abajo arriba)
 const SEPARACION = 125;
 
-/** Carga las imágenes de los hitos (si alguna falla, el mapa sigue sin ella). */
+/** Carga los fondos del mapa (si alguno falla, ese tramo queda en azul noche). */
 export async function cargarHitos(carga: (url: string) => Promise<Texture | null>): Promise<(Texture | null)[]> {
-  return Promise.all(HITOS.map((h) => carga(`${import.meta.env.BASE_URL}hito-${h}.png`)));
+  return Promise.all(TRAMOS.map((h) => carga(`${import.meta.env.BASE_URL}arte/${h}.webp`)));
 }
 
 // ------------------------------------------------------------------ mapa
@@ -40,6 +40,20 @@ export class EscenaMapa implements Escena {
     const cont = this.contenido;
     const nodoXY = (i: number) => ({ x: DW / 2 + Math.sin(i * 0.9) * 115, y: this.altoContenido - 150 - i * SEPARACION });
 
+    // Fondo: tramos de Sevilla apilados de abajo arriba, con velo oscuro para que se lean los nodos.
+    const fondo = new Container();
+    let yf = this.altoContenido;
+    hitos.forEach((tex) => {
+      if (!tex) { yf -= 787; return; }
+      const sp = new Sprite(tex);
+      sp.scale.set(DW / tex.width);
+      yf -= sp.height;
+      sp.y = yf;
+      fondo.addChild(sp);
+    });
+    fondo.addChild(new Graphics().rect(0, yf, DW, this.altoContenido - yf).fill({ color: 0x001b41, alpha: 0.28 }));
+    cont.addChild(fondo);
+
     // Camino: línea ancha translúcida con curvas entre nodos.
     const camino = new Graphics();
     NIVELES.forEach((_, i) => {
@@ -56,18 +70,6 @@ export class EscenaMapa implements Escena {
       for (let t = 0.2; t < 0.9; t += 0.2) puntos.circle(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 3).fill({ color: 0xffffff, alpha: 0.5 });
     });
     cont.addChild(puntos);
-
-    // Hitos de Sevilla al lado del camino, en el lado contrario al nodo.
-    hitos.forEach((tex, j) => {
-      if (!tex) return;
-      const i = 2 + 3 * j, p = nodoXY(Math.min(i, NIVELES.length - 1));
-      const s = new Sprite(tex);
-      s.anchor.set(0.5, 1);
-      s.scale.set(Math.min(150 / tex.height, 120 / tex.width));
-      s.position.set(p.x < DW / 2 ? DW - 70 : 70, p.y + 40);
-      s.alpha = 0.95;
-      cont.addChild(s);
-    });
 
     NIVELES.forEach((n, i) => {
       const p = nodoXY(i);
