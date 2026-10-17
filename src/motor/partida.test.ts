@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Partida } from './partida.ts';
-import type { Nivel, Pos } from './tipos.ts';
+import type { Nivel, Paso, Pos } from './tipos.ts';
 import { partidaDesde, especial, poner, pos, tipos, de } from './ayudas-test.ts';
 
 const clave = (p: Pos) => `${p.f},${p.c}`;
@@ -284,11 +284,13 @@ test('escarcha: un match al lado quita una capa y con 0 la celda recibe caída',
   assert.ok(p.puntos >= 180 + 20); // más lo de alguna cascada
 });
 
-test('escarcha bloquea la caída: nada pasa por debajo', () => {
+test('escarcha bloquea la caída: lo de arriba no la cruza, pero lo de debajo se rellena', () => {
   const q = nuevo(['01201', '12012', '20E20', '03031', '12312']);
+  const arriba = q.tablero[1][2].ficha!.id;
   const pasos = q.intercambiar(pos(3, 2), pos(4, 2));
   assert.deepEqual(tipos(pasos).slice(0, 2), ['intercambio', 'eliminar']);
-  assert.equal(q.tablero[3][2].ficha, null, 'bajo la escarcha no entra nada');
+  assert.ok(q.tablero[3][2].ficha, 'bajo la escarcha entra una ficha (en diagonal)');
+  assert.notEqual(q.tablero[3][2].ficha!.id, arriba, 'no es la de arriba: la escarcha no se cruza');
   assert.equal(q.tablero[2][2].escarcha, 1);
 });
 
@@ -391,18 +393,39 @@ test('ganar por manchas', () => {
   assert.equal(p.estado, 'ganado');
 });
 
-test('cumplir el objetivo sin llegar a la primera estrella no gana', () => {
-  const p = nuevo(TRIO, { objetivo: { tipo: 'manchas' }, estrellas: [99999, 2, 3] });
+test('objetivo no-puntos: cumplirlo basta para ganar, siempre con 3 estrellas', () => {
+  const p = nuevo(TRIO, { objetivo: { tipo: 'manchas' }, estrellas: [99999, 100000, 200000] });
   poner(p, 2, 2, { mancha: 1 });
+  const pasos = p.intercambiar(pos(1, 2), pos(2, 2));
+  assert.equal(p.estado, 'ganado');
+  assert.deepEqual(de(pasos, 'fin')[0], { tipo: 'fin', estado: 'ganado', estrellas: 3 });
+});
+
+test('objetivo puntos: sin la primera estrella no se gana', () => {
+  const p = nuevo(TRIO, { estrellas: [99999, 100000, 200000] });
   p.intercambiar(pos(1, 2), pos(2, 2));
   assert.equal(p.estado, 'jugando');
 });
 
-test('objetivo puntos: basta con la primera estrella', () => {
-  const p = nuevo(TRIO, { estrellas: [150, 400, 900] });
-  p.intercambiar(pos(1, 2), pos(2, 2));
-  assert.equal(p.estado, 'ganado');
-  assert.equal(p.estrellas(), [150, 400, 900].filter((x) => p.puntos >= x).length);
+test('objetivo puntos: se juegan todos los movimientos; al acabar, con la 1ª estrella se gana por umbrales y sin bolazo', () => {
+  const p = nuevo(TRIO, { estrellas: [150, 400, 900], movimientos: 2 });
+  const pasos = p.intercambiar(pos(1, 2), pos(2, 2));
+  assert.ok(p.puntos >= 150);
+  assert.equal(p.estado, 'jugando', 'aunque ya tenga la estrella 1, la partida sigue');
+  assert.equal(p.movimientosRestantes, 1);
+  assert.equal(de(pasos, 'fin').length, 0);
+  const q = nuevo(TRIO, { estrellas: [150, 400, 900], movimientos: 1 });
+  const pasos2 = q.intercambiar(pos(1, 2), pos(2, 2));
+  assert.equal(q.estado, 'ganado');
+  assert.equal(de(pasos2, 'bolazo').length, 0);
+  assert.deepEqual(de(pasos2, 'fin')[0], { tipo: 'fin', estado: 'ganado', estrellas: [150, 400, 900].filter((x) => q.puntos >= x).length });
+});
+
+test('objetivo puntos: sin llegar a la 1ª estrella al acabar los movimientos se pierde', () => {
+  const p = nuevo(TRIO, { estrellas: [99999, 100000, 200000], movimientos: 1 });
+  const pasos = p.intercambiar(pos(1, 2), pos(2, 2));
+  assert.equal(p.estado, 'perdido');
+  assert.deepEqual(de(pasos, 'fin')[0], { tipo: 'fin', estado: 'perdido', estrellas: 0 });
 });
 
 test('perder: sin movimientos y sin objetivo', () => {
@@ -466,4 +489,180 @@ test('potenciadores previos: ponen raya, tarrina y bola Bolas sin crear tríos',
   assert.ok(esp.some((f) => f.especial === 'tarrina'));
   assert.ok(esp.some((f) => f.especial === 'bolaBolas' && f.sabor === -1));
   assert.equal(hayTrios(p), false);
+});
+
+// ---------------- potenciadores dentro de la partida ----------------
+test('cuchara: rompe una bola, rellena y no gasta movimiento', () => {
+  const p = nuevo(BASE);
+  const pasos = p.usarCuchara(pos(2, 2));
+  assert.equal(p.movimientosRestantes, 20);
+  assert.deepEqual(de(pasos, 'eliminar')[0].celdas, [pos(2, 2)]);
+  assert.ok(p.puntos >= 60);
+  assert.ok(p.tablero.flat().every((c) => c.ficha));
+  assert.equal(p.estado, 'jugando');
+});
+
+test('cuchara sobre una raya la detona', () => {
+  const p = nuevo(BASE);
+  especial(p, 2, 2, 'rayaH');
+  const pasos = p.usarCuchara(pos(2, 2));
+  assert.equal(de(pasos, 'detonar').length, 1);
+  assert.equal(conjunto(de(pasos, 'eliminar').flatMap((x) => x.celdas)).size, 5);
+  assert.equal(p.movimientosRestantes, 20);
+});
+
+test('cuchara quita una capa de escarcha y abre un candado (la ficha se queda)', () => {
+  const p = nuevo(['01201', '12012', '20120', '01201', 'EeEee']);
+  const pasos = p.usarCuchara(pos(4, 0));
+  assert.deepEqual(de(pasos, 'escarcha').map((x) => [x.pos, x.quedan]), [[pos(4, 0), 1]]);
+  assert.equal(p.tablero[4][0].escarcha, 1);
+  const q = nuevo(BASE);
+  poner(q, 2, 2, { candado: true });
+  const id = q.tablero[2][2].ficha!.id;
+  const pasos2 = q.usarCuchara(pos(2, 2));
+  assert.deepEqual(de(pasos2, 'candado').map((x) => x.pos), [pos(2, 2)]);
+  assert.equal(q.tablero[2][2].ficha!.id, id);
+  assert.equal(q.tablero[2][2].candado, false);
+});
+
+test('cuchara sin nada que romper devuelve []', () => {
+  const p = nuevo(['01201', '12012', '20p20', '01.01', '12012']);
+  assert.deepEqual(p.usarCuchara(pos(2, 2)), []); // carapina
+  assert.deepEqual(p.usarCuchara(pos(3, 2)), []); // hueco
+  assert.deepEqual(p.usarCuchara(pos(9, 9)), []); // fuera
+  assert.equal(p.puntos, 0);
+});
+
+test('cuchara que cumple el objetivo emite fin y gana; en partida acabada no hace nada', () => {
+  const p = nuevo(BASE, { objetivo: { tipo: 'manchas' } });
+  poner(p, 2, 2, { mancha: 1 });
+  const pasos = p.usarCuchara(pos(2, 2));
+  assert.equal(p.estado, 'ganado');
+  assert.deepEqual(de(pasos, 'fin').map((x) => x.estado), ['ganado']);
+  assert.deepEqual(p.usarCuchara(pos(0, 0)), []);
+});
+
+test('cuchara con barajado automático deja siempre una jugada', () => {
+  const p = partidaDesde(BASE);
+  p.usarCuchara(pos(2, 2));
+  assert.equal(hayTrios(p), false);
+  assert.notEqual(p.pista(), null);
+});
+
+test('mano libre: cambia sin match y sin gastar movimiento', () => {
+  const p = nuevo(BASE);
+  const a = p.tablero[0][0].ficha!.id, b = p.tablero[0][1].ficha!.id;
+  const pasos = p.intercambioLibre(pos(0, 0), pos(0, 1));
+  assert.equal(p.movimientosRestantes, 20);
+  assert.equal(p.tablero[0][0].ficha!.id, b);
+  assert.equal(p.tablero[0][1].ficha!.id, a);
+  assert.deepEqual(tipos(pasos), ['intercambio']);
+});
+
+test('mano libre con match se resuelve normal y puede ganar', () => {
+  const p = nuevo(TRIO, { objetivo: { tipo: 'manchas' } });
+  poner(p, 2, 2, { mancha: 1 });
+  const pasos = p.intercambioLibre(pos(1, 2), pos(2, 2));
+  assert.equal(p.movimientosRestantes, 0); // ganar vacía los movimientos sobrantes (bolazo)
+  assert.equal(de(pasos, 'eliminar').length >= 1, true);
+  assert.equal(p.estado, 'ganado');
+  assert.equal(de(pasos, 'fin').length, 1);
+});
+
+test('mano libre no mueve candados, escarcha, carapinas ni fichas no adyacentes', () => {
+  const p = nuevo(['01201', '12012', '20p20', '01201', 'ee012']);
+  poner(p, 0, 0, { candado: true });
+  const antes = JSON.stringify(p.tablero);
+  for (const [a, b] of [[pos(0, 0), pos(0, 1)], [pos(2, 2), pos(2, 3)], [pos(4, 0), pos(4, 1)], [pos(4, 2), pos(4, 3)], [pos(1, 0), pos(1, 2)]] as [Pos, Pos][]) {
+    if (b.c === 3 && a.f === 4) continue; // 4,2↔4,3 son dos bolas válidas
+    assert.deepEqual(tipos(p.intercambioLibre(a, b)), ['invalido']);
+  }
+  assert.equal(JSON.stringify(p.tablero), antes);
+});
+
+test('sumarMovimientos: suma y revive una partida perdida por movimientos', () => {
+  const p = nuevo(BASE, { movimientos: 1 });
+  p.intercambioLibre(pos(0, 0), pos(0, 1)); // gratis
+  p.sumarMovimientos(2);
+  assert.equal(p.movimientosRestantes, 3);
+  const q = nuevo(BASE, { movimientos: 1 });
+  q.intercambiar(...(q.pista() ?? [pos(0, 0), pos(0, 1)]));
+  q.movimientosRestantes = 0; q.estado = 'perdido';
+  q.sumarMovimientos(5);
+  assert.equal(q.estado, 'jugando');
+  assert.equal(q.movimientosRestantes, 5);
+  const g = nuevo(TRIO, { objetivo: { tipo: 'manchas' } });
+  poner(g, 2, 2, { mancha: 1 });
+  g.intercambiar(pos(1, 2), pos(2, 2));
+  assert.equal(g.estado, 'ganado');
+  g.sumarMovimientos(5);
+  assert.equal(g.estado, 'ganado'); // ganado no se revive
+});
+
+// ---------------- relleno bajo candados y barajado de emergencia ----------------
+test('bajo un candado las casillas vaciadas se rellenan (por arriba del tramo)', () => {
+  const p = nuevo(['01201', '12012', '20120', '01201', '12012']);
+  poner(p, 1, 2, { candado: true });
+  // Se rompen las dos de debajo del candado: el tramo (2,2)-(4,2) debe quedar lleno.
+  p.usarCuchara(pos(3, 2));
+  p.usarCuchara(pos(4, 2));
+  for (let f = 0; f < 5; f++) assert.ok(p.tablero[f][2].ficha, `vacía (${f},2)`);
+  assert.equal(p.tablero[1][2].candado, true);
+});
+
+test('barajado imposible: regenera las bolas y deja jugada', () => {
+  const p = partidaDesde(['012', '345', '678'], { sabores: 6 });
+  const pasos = p.asegurarJugada();
+  assert.deepEqual(tipos(pasos), ['eliminar', 'caer']);
+  assert.notEqual(p.pista(), null);
+  assert.equal(hayTrios(p), false);
+});
+
+test('carapinas por salir: si el tablero se queda sin carapinas, entra una seguro en la siguiente caída', () => {
+  const p = nuevo(['01201', '12012', '20120', '01p01', '33032'],
+    { objetivo: { tipo: 'carapinas', n: 2 }, carapinasPorSalir: 1, estrellas: [1, 2, 3], movimientos: 20 });
+  poner(p, 4, 2, { salida: true });
+  const pasos = p.intercambiar(pos(4, 2), pos(4, 3));
+  assert.equal(de(pasos, 'carapinaFuera').length, 1);
+  assert.equal(p.progreso.carapinas, 1);
+  const hay = p.tablero.flat().filter((c) => c.ficha?.tipo === 'carapina').length;
+  assert.equal(hay, 1, 'la tercera ya está en el tablero');
+  assert.equal(p.estado, 'jugando');
+});
+
+// ---------------- caída diagonal ----------------
+test('candado: bajo él las casillas se rellenan con fichas que bajan en diagonal desde las columnas vecinas', () => {
+  const p = nuevo(['01201', '12012', '20120', '01201', '12012']);
+  poner(p, 2, 2, { candado: true });
+  const vecinas = [p.tablero[1][1].ficha!.id, p.tablero[1][3].ficha!.id];
+  const todos: Paso[] = [...p.usarCuchara(pos(3, 2)), ...p.usarCuchara(pos(4, 2))];
+  const movs = de(todos, 'caer').flatMap((x) => x.movimientos);
+  const diag = movs.filter((m) => m.desde.c !== m.hasta.c);
+  assert.ok(diag.length >= 1, 'hay al menos un movimiento diagonal');
+  assert.ok(diag.some((m) => vecinas.includes(m.id)));
+  for (const m of diag) assert.ok(Math.abs(m.desde.c - m.hasta.c) === 1 && m.hasta.f - m.desde.f === 1);
+  for (let f = 0; f < 5; f++) assert.ok(p.tablero[f][2].ficha, `vacía (${f},2)`);
+  assert.equal(p.tablero[2][2].candado, true);
+});
+
+test('niveles 1-60: tras caer() no queda ninguna casilla vacía (30 jugadas al azar)', async () => {
+  const { nivel } = await import('../datos/episodios.ts');
+  let semilla = 12345;
+  const azar = () => { semilla = (Math.imul(semilla, 1103515245) + 12345) >>> 0; return semilla / 4294967296; };
+  for (let id = 1; id <= 60; id++) {
+    const base = nivel(id);
+    const p = new Partida({ ...base, movimientos: 99, estrellas: [1e12, 2e12, 3e12] });
+    for (let j = 0; j < 30 && p.estado === 'jugando'; j++) {
+      const jugadas: [Pos, Pos][] = [];
+      for (let f = 0; f < p.tablero.length; f++) for (let c = 0; c < p.tablero[0].length; c++) for (const b of [{ f, c: c + 1 }, { f: f + 1, c }]) {
+        if ((p as any).valido({ f, c }, b)) jugadas.push([{ f, c }, b]);
+      }
+      if (!jugadas.length) break;
+      const [a, b] = jugadas[Math.floor(azar() * jugadas.length)];
+      p.intercambiar(a, b);
+      p.tablero.forEach((fila, f) => fila.forEach((ce, c) => {
+        if (ce.existe && ce.escarcha === 0) assert.ok(ce.ficha, `nivel ${id}, jugada ${j}: vacía (${f},${c})`);
+      }));
+    }
+  }
 });

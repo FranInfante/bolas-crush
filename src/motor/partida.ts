@@ -94,6 +94,8 @@ export class Partida {
   }
 
   estrellas(): 0 | 1 | 2 | 3 {
+    // Niveles de objetivo (manchas, pedido, carapinas): cumplirlo da siempre 3 estrellas, sin mirar puntos. En puntos, por umbrales.
+    if (this.estado === 'ganado' && this.nivel.objetivo.tipo !== 'puntos') return 3;
     return this.nivel.estrellas.filter((e) => this.puntos >= e).length as 0 | 1 | 2 | 3;
   }
 
@@ -122,6 +124,45 @@ export class Partida {
   intercambiar(a: Pos, b: Pos): Paso[] {
     if (this.estado !== 'jugando' || !this.valido(a, b)) return [{ tipo: 'invalido', a, b }];
     this.movimientosRestantes--;
+    return this.jugarCambio(a, b);
+  }
+
+  /**
+   * Potenciador «cuchara» (el martillo de Candy Crush): rompe la ficha de `p` (si es especial, detona), abre su candado
+   * o quita una capa de escarcha. Después caídas y cascadas como un movimiento, pero sin gastar movimiento.
+   * Devuelve [] si no hay nada que romper (hueco, celda vacía sin escarcha, carapina) o la partida no está en juego.
+   */
+  usarCuchara(p: Pos): Paso[] {
+    const ce = this.celda(p);
+    if (this.estado !== 'jugando' || !ce?.existe) return [];
+    if (ce.ficha ? ce.ficha.tipo === 'carapina' : ce.escarcha === 0) return [];
+    const pasos: Paso[] = [];
+    this.ctx = { cascada: 0, cola: [], danadas: new Set(), creoEspecial: false, combo: null };
+    const cascada = this.ciclo(pasos, [], () => this.limpiar(pasos, [p], -1));
+    return this.cerrarJugada(pasos, cascada);
+  }
+
+  /**
+   * Potenciador «mano libre»: cambia dos fichas adyacentes aunque no hagan match, sin gastar movimiento. Si hacen match
+   * (o combo de especiales) se resuelve normal. No mueve candados, escarcha ni carapinas: devuelve un paso 'invalido'.
+   */
+  intercambioLibre(a: Pos, b: Pos): Paso[] {
+    const ca = this.celda(a), cb = this.celda(b);
+    const movible = (ce?: Celda) => !!ce?.existe && !!ce.ficha && !ce.candado && ce.escarcha === 0 && ce.ficha.tipo === 'bola';
+    if (this.estado !== 'jugando' || !movible(ca) || !movible(cb) || Math.abs(a.f - b.f) + Math.abs(a.c - b.c) !== 1) {
+      return [{ tipo: 'invalido', a, b }];
+    }
+    return this.jugarCambio(a, b);
+  }
+
+  /** «+5 movimientos». Si se había perdido por quedarse sin movimientos, vuelve a jugar (llama luego a asegurarJugada()). */
+  sumarMovimientos(n: number): void {
+    this.movimientosRestantes += n;
+    if (this.estado === 'perdido' && this.movimientosRestantes > 0) this.estado = 'jugando';
+  }
+
+  /** Cambia a y b (ya comprobado) y resuelve lo que salga; no toca el contador de movimientos. */
+  private jugarCambio(a: Pos, b: Pos): Paso[] {
     this.cambiar(a, b);
     // Tras el cambio, la ficha que movió el jugador está en `b` y la otra en `a`.
     const pasos: Paso[] = [{ tipo: 'intercambio', a, b }];
@@ -129,18 +170,26 @@ export class Partida {
     const fb = this.fichaEn(b)!, fa = this.fichaEn(a)!;
     const esCombo = fb.especial === 'bolaBolas' || fa.especial === 'bolaBolas' || (fb.especial !== 'ninguno' && fa.especial !== 'ninguno');
     const cascada = this.ciclo(pasos, [b, a], esCombo ? () => this.combinar(pasos, a, b) : null);
+    return this.cerrarJugada(pasos, cascada);
+  }
 
+  /** Final común de cualquier jugada: jaleo, victoria / derrota o barajado si no quedan jugadas. */
+  private cerrarJugada(pasos: Paso[], cascada: number): Paso[] {
     const jaleo = this.nivelJaleo(cascada);
     if (jaleo) pasos.push({ tipo: 'jaleo', nivel: jaleo });
-    if (this.objetivoCumplido() && this.puntos >= this.nivel.estrellas[0]) {
+    // Niveles de objetivo: se gana al cumplirlo (3 estrellas y bolazo con los movimientos sobrantes).
+    // Niveles de puntos (como Candy Crush): se juegan todos los movimientos; al acabar, 1ª estrella = ganado (sin bolazo).
+    const puntosNivel = this.nivel.objetivo.tipo === 'puntos';
+    if (!puntosNivel && this.objetivoCumplido()) {
       this.estado = 'ganado';
       pasos.push({ tipo: 'bolazo' });
       this.bolazo(pasos);
       this.movimientosRestantes = 0;
       pasos.push({ tipo: 'fin', estado: 'ganado', estrellas: this.estrellas() });
     } else if (this.movimientosRestantes <= 0) {
-      this.estado = 'perdido';
-      pasos.push({ tipo: 'fin', estado: 'perdido', estrellas: 0 });
+      const gana = puntosNivel && this.puntos >= this.nivel.estrellas[0];
+      this.estado = gana ? 'ganado' : 'perdido';
+      pasos.push({ tipo: 'fin', estado: this.estado, estrellas: gana ? this.estrellas() : 0 });
     } else if (this.barajarAuto) {
       pasos.push(...this.asegurarJugada());
     }
@@ -168,8 +217,35 @@ export class Partida {
         return [{ tipo: 'barajar', movimientos }];
       }
     }
-    // ponytail: sin solución tras 300 mezclas (tableros casi llenos de bloqueadores) se deja como está.
+    // Sin solución tras 300 mezclas: se regeneran las bolas normales con sabores nuevos (especiales y candados se quedan).
     celdas.forEach((p, i) => { this.tablero[p.f][p.c].ficha = fichas[i]; });
+    return this.regenerar(celdas, fichas);
+  }
+
+  /** Último recurso del barajado: cambia las bolas normales por otras nuevas, sin tríos y con jugada (si no hay forma, deja el tablero). */
+  private regenerar(celdas: Pos[], fichas: Ficha[]): Paso[] {
+    const vieja = (p: Pos) => fichas[celdas.findIndex((q) => igual(p, q))];
+    const normales = celdas.filter((p) => vieja(p).especial === 'ninguno');
+    if (!normales.length) return [];
+    for (let intento = 0; intento < 300; intento++) {
+      for (const p of normales) {
+        const prohibidos = new Set<Sabor>();
+        this.tablero[p.f][p.c].ficha = null;
+        const a = this.saborDe(p.f, p.c - 1), b = this.saborDe(p.f, p.c - 2);
+        if (a >= 0 && a === b) prohibidos.add(a);
+        const u = this.saborDe(p.f - 1, p.c), v = this.saborDe(p.f - 2, p.c);
+        if (u >= 0 && u === v) prohibidos.add(u);
+        const libres = Array.from({ length: this.nivel.sabores }, (_, i) => i).filter((s) => !prohibidos.has(s));
+        this.tablero[p.f][p.c].ficha = this.nuevaFicha('bola', this.azar.elegir(libres.length ? libres : [0]));
+      }
+      if (this.buscarGrupos().length === 0 && this.pista()) {
+        return [
+          { tipo: 'eliminar', celdas: normales, ids: normales.map((p) => vieja(p).id), puntos: 0, cascada: 0, sabor: -1 },
+          { tipo: 'caer', movimientos: [], nuevas: normales.map((p) => ({ ficha: copia(this.fichaEn(p)!), hasta: p })) },
+        ];
+      }
+    }
+    normales.forEach((p) => { this.tablero[p.f][p.c].ficha = vieja(p); });
     return [];
   }
 
@@ -527,7 +603,7 @@ export class Partida {
   }
 
   private caer(pasos: Paso[]): void {
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 300; i++) {
       const salieron = this.salir(pasos);
       const { movimientos, nuevas } = this.gravedad();
       if (movimientos.length || nuevas.length) pasos.push({ tipo: 'caer', movimientos, nuevas });
@@ -535,49 +611,87 @@ export class Partida {
     }
   }
 
+  /** Tramos de una columna: se parten por los bloqueos (escarcha, ficha con candado). `abierto` = sin bloqueo encima (entra por arriba del todo). */
+  private tramos(c: number): { celdas: Pos[]; abierto: boolean }[] {
+    const r: { celdas: Pos[]; abierto: boolean }[] = [];
+    let actual: Pos[] = [], abierto = true;
+    for (let f = 0; f < this.filas; f++) {
+      const ce = this.tablero[f][c];
+      if (!ce.existe) continue;
+      if (ce.escarcha > 0 || (ce.ficha && ce.candado)) { r.push({ celdas: actual, abierto }); actual = []; abierto = false; } else actual.push({ f, c });
+    }
+    r.push({ celdas: actual, abierto });
+    return r.filter((t) => t.celdas.length);
+  }
+
   /**
-   * Una pasada de gravedad + relleno. Cada columna se parte en tramos por los bloqueos (escarcha, ficha con
-   * candado): dentro de un tramo las fichas bajan saltando los huecos; nada cruza un bloqueo (sin caída diagonal
-   * en v1). Solo el tramo de arriba, si no hay bloqueo encima, se rellena por arriba.
+   * Una pasada de gravedad, como Candy Crush. Cada llamada hace UNA de estas cosas (caer() repite hasta que no cambie nada):
+   * 1) caída vertical dentro de cada tramo (saltando huecos del tablero) y relleno por arriba del todo de cada columna;
+   * 2) si no hay nada que caer y queda alguna casilla vacía bajo un bloqueo, una ficha de arriba-izquierda / arriba-derecha
+   *    baja en diagonal a ella (alterna la preferencia por casilla; el movimiento tiene `desde.c` ≠ `hasta.c`);
+   * 3) último recurso (sin ficha diagonal posible, p. ej. vecinas en hueco o con candado): entra una nueva por arriba del tramo.
+   * Nada cruza un bloqueo en vertical. Las carapinas solo entran por el tramo abierto de la columna.
    */
   private gravedad(): { movimientos: Movimiento[]; nuevas: { ficha: Ficha; hasta: Pos }[] } {
     const movimientos: Movimiento[] = [];
     const nuevas: { ficha: Ficha; hasta: Pos }[] = [];
     const carapinas = this.tablero.flat().filter((c) => c.ficha?.tipo === 'carapina').length;
-    // Decide si en esta pasada entra una carapina (de vez en cuando, y nunca más de 2 a la vez).
-    let entra = this.porEntrar > 0 && carapinas < 2 && this.azar.siguiente() < 0.35;
-    for (let c = 0; c < this.cols; c++) {
-      let tramo: Pos[] = [];
-      let primero = true;
-      const cerrar = () => {
-        const fichas = tramo.filter((p) => this.fichaEn(p)).map((p) => this.fichaEn(p)!);
-        const vacias = tramo.length - fichas.length;
-        const origen = tramo.filter((p) => this.fichaEn(p));
-        tramo.forEach((p) => { this.tablero[p.f][p.c].ficha = null; });
-        fichas.forEach((fi, i) => {
-          const hasta = tramo[vacias + i];
-          this.tablero[hasta.f][hasta.c].ficha = fi;
-          if (!igual(origen[i], hasta)) movimientos.push({ id: fi.id, desde: origen[i], hasta });
-        });
-        if (primero) {
-          // La de más abajo entra primero (desde f = -1), la siguiente desde -2…; la carapina, si toca, es la de más arriba.
-          for (let j = 0; j < vacias; j++) {
-            const hasta = tramo[vacias - 1 - j];
-            let ficha: Ficha;
-            if (entra && j === vacias - 1) { ficha = this.nuevaFicha('carapina', -1); entra = false; this.porEntrar--; }
-            else ficha = this.nuevaFicha('bola', this.saborRelleno());
-            this.tablero[hasta.f][hasta.c].ficha = ficha;
-            nuevas.push({ ficha: copia(ficha), hasta });
-          }
-        }
-        tramo = [];
-      };
-      for (let f = 0; f < this.filas; f++) {
-        const ce = this.tablero[f][c];
-        if (!ce.existe) continue;
-        if (ce.escarcha > 0 || (ce.ficha && ce.candado)) { cerrar(); primero = false; } else tramo.push({ f, c });
+    // Decide si en esta pasada entra una carapina. Si no queda ninguna en el tablero entra seguro (si no, el nivel se
+    // quedaría esperando); con una, 35 %; nunca más de 2 a la vez.
+    let entra = this.porEntrar > 0 && (carapinas === 0 || (carapinas < 2 && this.azar.siguiente() < 0.35));
+    const todos = Array.from({ length: this.cols }, (_, c) => this.tramos(c));
+
+    // 1) vertical + relleno de los tramos abiertos
+    for (const columna of todos) for (const { celdas: tramo, abierto } of columna) {
+      const origen = tramo.filter((p) => this.fichaEn(p));
+      const fichas = origen.map((p) => this.fichaEn(p)!);
+      const vacias = tramo.length - fichas.length;
+      tramo.forEach((p) => { this.tablero[p.f][p.c].ficha = null; });
+      fichas.forEach((fi, i) => {
+        const hasta = tramo[vacias + i];
+        this.tablero[hasta.f][hasta.c].ficha = fi;
+        if (!igual(origen[i], hasta)) movimientos.push({ id: fi.id, desde: origen[i], hasta });
+      });
+      if (!abierto) continue;
+      // La de más abajo entra primero (desde f = -1), la siguiente desde -2…; la carapina, si toca, es la de más arriba.
+      for (let j = 0; j < vacias; j++) {
+        const hasta = tramo[vacias - 1 - j];
+        let ficha: Ficha;
+        if (entra && j === vacias - 1) { ficha = this.nuevaFicha('carapina', -1); entra = false; this.porEntrar--; }
+        else ficha = this.nuevaFicha('bola', this.saborRelleno());
+        this.tablero[hasta.f][hasta.c].ficha = ficha;
+        nuevas.push({ ficha: copia(ficha), hasta });
       }
-      cerrar();
+    }
+    if (movimientos.length || nuevas.length) return { movimientos, nuevas };
+
+    // 2) diagonal: la casilla de más arriba de cada tramo cerrado, si está vacía, recibe una ficha de la fila de encima en la columna vecina
+    const usadas = new Set<string>();
+    for (const columna of todos) for (const { celdas: tramo, abierto } of columna) {
+      const hasta = tramo[0];
+      if (abierto || this.fichaEn(hasta)) continue;
+      const lados = (hasta.f + hasta.c) % 2 === 0 ? [-1, 1] : [1, -1];
+      for (const d of lados) {
+        const desde = { f: hasta.f - 1, c: hasta.c + d };
+        const ce = this.celda(desde);
+        if (!ce?.existe || !ce.ficha || ce.candado || usadas.has(clave(desde))) continue;
+        usadas.add(clave(desde));
+        this.tablero[hasta.f][hasta.c].ficha = ce.ficha;
+        ce.ficha = null;
+        movimientos.push({ id: this.fichaEn(hasta)!.id, desde, hasta });
+        break;
+      }
+    }
+    if (movimientos.length) return { movimientos, nuevas };
+
+    // 3) último recurso: entra por arriba del tramo cerrado (nada se queda vacío para siempre)
+    for (const columna of todos) for (const { celdas: tramo } of columna) {
+      for (const hasta of tramo) {
+        if (this.fichaEn(hasta)) continue;
+        const ficha = this.nuevaFicha('bola', this.saborRelleno());
+        this.tablero[hasta.f][hasta.c].ficha = ficha;
+        nuevas.push({ ficha: copia(ficha), hasta });
+      }
     }
     return { movimientos, nuevas };
   }

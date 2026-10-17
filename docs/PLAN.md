@@ -61,3 +61,9 @@ Página: https://claude.ai/artifact/HBMGGsFV9Ziv1WicnoQMf5
 - 17-10: nivel 15 ajustado a 17 movimientos (bot gana 43 %, meta 45 %; `calibrar.ts --auto --nivel=15 --mov=17 --n=400`).
 - Respuestas de Fran en la página de cambios: **ninguna aún** (colección `respuestas` vacía a 17-10 00:30). Cuando conteste, sus «Hay que cambiarlo» + nota son el siguiente encargo y se copian aquí como criterio.
 - 17-10: Fran: «el juego me parece buenisimo solo hay que desplegarlo gratis». Stage publicado en GitHub Pages (repo público FranInfante/bolas-crush, `bash scripts/publicar.sh` desde la rama stage) en vez de jcubo: jcubo pide montar dominio y script con root en el servidor. prod, con su Vale.
+
+## Pedidos de Fran (17-10, madrugada) — siguiente tanda
+- **3 estrellas al cumplir el objetivo** en niveles de manchas, pedido y carapinas (sus palabras: «las estrellas se dan en función a si completas el objetivo o no»). En curso.
+- **Carapina que entra por arriba**: si no queda ninguna en el tablero, entra ya (nivel 10 tardaba). En curso.
+- **Sacabolas** (como el avioncito de papel de Candy Crush, con 4 en cuadrado 2x2): al activarlo quita arriba, abajo y los dos lados, y vuela a una casilla del objetivo (mancha, escarcha, bola del pedido).
+- **Pala de helado** (dispensador de carapinas): bloque que se activa con 3-4 combinaciones al lado; se va llenando de helado y suelta una carapina que hay que bajar. Así las carapinas no tienen que estar en el tablero desde el principio.

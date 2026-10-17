@@ -19,6 +19,7 @@ export interface Ganchos {
   bolazo(): Promise<void>;
   puntos(n: number): void;
   movimiento(): void;
+  barajado(): void;
 }
 
 interface Vis { s: Sprite; key: string; p: Pos; sabor: number; id: number }
@@ -34,6 +35,12 @@ export class VistaTablero extends Container {
   bloqueado = false;
   alIntentar: (a: Pos, b: Pos) => void = () => {};
   alTocar: () => void = () => {};
+  /** Modo cuchara: el siguiente toque sobre una bola se entrega a alCuchara en vez de seleccionarla. */
+  modoCuchara = false;
+  alCuchara: (p: Pos) => void = () => {};
+  private desmarcar = false; // se tocó la bola ya seleccionada: si no se arrastra, se deselecciona al soltar
+  private ticker: Ticker;
+  private latidoFn: (t: { deltaMS: number }) => void;
 
   private partida: Partida;
   private tx: Texturas;
@@ -83,10 +90,18 @@ export class VistaTablero extends Container {
     this.hitArea = new Rectangle(0, 0, this.ancho, this.alto);
     this.on('pointerdown', (e) => this.alBajar(e.getLocalPosition(this)));
     this.on('pointermove', (e) => this.alMover(e.getLocalPosition(this)));
-    const suelta = () => { this.down = null; };
+    const suelta = () => { if (this.down && this.desmarcar) this.seleccionar(null); this.desmarcar = false; this.down = null; };
     this.on('pointerup', suelta);
     this.on('pointerupoutside', suelta);
-    ticker.add((t) => this.latido(t.deltaMS));
+    this.ticker = ticker;
+    this.latidoFn = (t) => this.latido(t.deltaMS);
+    ticker.add(this.latidoFn);
+  }
+
+  /** Quita el latido del ticker (si no, cada partida dejaría uno vivo). */
+  override destroy(options?: Parameters<Container['destroy']>[0]): void {
+    this.ticker.remove(this.latidoFn);
+    super.destroy(options);
   }
 
   private forEachCelda(fn: (p: Pos, c: Partida['tablero'][0][0]) => void): void {
@@ -161,6 +176,7 @@ export class VistaTablero extends Container {
     if (this.enBolazo) this.tw.velocidad = 3; // un toque acelera el BOLAZO ×3
     if (this.bloqueado) return;
     const p = this.celdaEn(l);
+    if (this.modoCuchara) { if (p) this.alCuchara(p); return; }
     if (!p) { this.seleccionar(null); return; }
     const s = this.sel;
     if (s && Math.abs(s.f - p.f) + Math.abs(s.c - p.c) === 1) { // toque-toque
@@ -168,7 +184,8 @@ export class VistaTablero extends Container {
       this.alIntentar(s, p);
       return;
     }
-    if (s && s.f === p.f && s.c === p.c) { this.seleccionar(null); return; }
+    if (s && s.f === p.f && s.c === p.c) { this.down = { p, x: l.x, y: l.y }; this.desmarcar = true; return; } // arrastrar la ya seleccionada sí mueve
+    this.desmarcar = false;
     this.seleccionar(p);
     this.down = { p, x: l.x, y: l.y };
   }
@@ -259,7 +276,7 @@ export class VistaTablero extends Container {
       case 'candado': this.quitarCapa(this.candados, p.pos, 0, 0xffc83d, () => 1); this.au.crear(); return;
       case 'carapinaFuera': return this.carapinaFuera(p.id);
       case 'caer': return this.caer(p);
-      case 'barajar': return this.barajar(p.movimientos);
+      case 'barajar': this.gan.barajado(); return this.barajar(p.movimientos);
       case 'jaleo': this.gan.jaleo(p.nivel); if (p.nivel >= 3) this.gan.agitar(p.nivel * 2); return;
       case 'bolazo': return this.bolazo();
       case 'fin': return;
@@ -428,14 +445,15 @@ export class VistaTablero extends Container {
 
   private async caer(p: Extract<Paso, { tipo: 'caer' }>): Promise<void> {
     const trabajos: Promise<void>[] = [];
-    const caida = (v: Vis, desdeF: number, hasta: Pos) => {
+    const caida = (v: Vis, desdeF: number, hasta: Pos, desdeC = hasta.c) => {
       const y0 = desdeF * T + T / 2, y1 = xy(hasta).y;
+      const x0 = xy({ f: hasta.f, c: desdeC }).x, x1 = xy(hasta).x; // caída diagonal: también cambia de columna
       const filas = Math.max(0.5, hasta.f - desdeF);
       const dur = 120 + 85 * Math.sqrt(filas); // más lejos, más tarda, pero acelerando
       v.p = hasta;
-      v.s.x = xy(hasta).x;
+      v.s.x = x0;
       trabajos.push((async () => {
-        await this.tw.to(dur, (t) => { v.s.y = y0 + (y1 - y0) * t; }, ease.inQuad, hasta.c * 22);
+        await this.tw.to(dur, (t) => { v.s.y = y0 + (y1 - y0) * t; v.s.x = x0 + (x1 - x0) * t; }, ease.inQuad, hasta.c * 22);
         // Rebote al aterrizar: se aplasta un poco y recupera.
         await this.tw.to(130, (t) => {
           const e = ease.outBack(t);
@@ -444,7 +462,7 @@ export class VistaTablero extends Container {
         v.s.scale.set(ESC);
       })());
     };
-    for (const m of p.movimientos) { const v = this.vis.get(m.id); if (v) caida(v, m.desde.f, m.hasta); }
+    for (const m of p.movimientos) { const v = this.vis.get(m.id); if (v) caida(v, m.desde.f, m.hasta, m.desde.c); }
     // Las nuevas entran por arriba apiladas: la de más arriba parte de más lejos.
     const porCol = new Map<number, typeof p.nuevas>();
     for (const n of p.nuevas) porCol.set(n.hasta.c, [...(porCol.get(n.hasta.c) ?? []), n]);

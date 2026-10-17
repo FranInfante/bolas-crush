@@ -1,0 +1,22 @@
+// Textos nuevos del enganche (mapa infinito, regalo, cofre, potenciadores). En andaluz, cortos.
+export const EXTRA = {
+  dificil: 'Difícil',
+  nivelDificil: 'Nivel difícil',
+  nivelDificilAviso: '¡Ojo, mi arma, que este es duro!',
+  episodio: (n: number) => `Episodio ${n}`,
+  regaloTitulo: 'Regalo diario',
+  regaloSub: 'Vuelve cada día y la racha sube el premio, mi arma',
+  dia: (n: number) => `Día ${n}`,
+  recoger: '¡Recoger!',
+  racha7: '+1 de cada',
+  cofreTitulo: '¡Cofre del episodio!',
+  cofreAbrir: 'Toca para abrir',
+  genial: '¡Genial!',
+  avisoCuchara: 'Toca una bola pa romperla',
+  avisoMano: 'Arrastra dos bolas pa cambiarlas',
+  cancelar: 'Cancelar',
+  ofertaTitulo: '¿5 movimientos más?',
+  ofertaTexto: 'Te quedaste a un pelo, quillo. ¿Seguimos?',
+  ofertaSi: (gratis: boolean, precio: number) => (gratis ? 'Usar +5 movs' : `Seguir por ${precio}`),
+  ofertaNo: 'No, gracias',
+} as const;

@@ -1,17 +1,21 @@
 // Escena de partida: HUD (movimientos, objetivo, puntos), tablero, jaleos y paso al resultado.
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { Partida } from '../motor/index.ts';
-import type { Pos } from '../motor/tipos.ts';
+import type { Paso, Pos } from '../motor/tipos.ts';
 import type { Especial, Nivel } from '../motor/tipos.ts';
 import { BOLAZO, JALEO, TEXTOS } from '../datos/frases.ts';
 import type { Juego, Escena } from './app.ts';
 import { VistaTablero } from './vista.ts';
 import { ease } from './tween.ts';
 import { estrella } from './dibujo.ts';
-import { boton, DW, fmt, panel, txt, txtBorde } from './ui.ts';
+import { boton, cargarProgreso, DW, fmt, moneda, panel, PRECIO, puedePot, txt, txtBorde, usarPot } from './ui.ts';
+import type { PotId } from './ui.ts';
 import { crearResultado } from './pantallas.ts';
+import { iconoPot, ofertaMas5 } from './enganche.ts';
+import { EXTRA } from './textos-extra.ts';
 
 const ALTO_HUD = 232;
+const ALTO_BARRA = 84; // barra de potenciadores abajo
 
 export class EscenaPartida implements Escena {
   readonly container = new Container();
@@ -26,6 +30,11 @@ export class EscenaPartida implements Escena {
   private puntosMostrados = 0;
   private ocupado = false;
   private terminado = false;
+  private destruida = false;
+  private libre = false;                       // la jugada en curso no gasta movimiento (cuchara, mano libre)
+  private modo: 'cuchara' | 'mano' | null = null;
+  private barra2 = new Container();            // barra de potenciadores
+  private avisoModo = new Container();         // aviso + cancelar mientras hay un modo activo
   private ocioMs = 0;
   private pistaPuesta = false;
   private temblor = 0;
@@ -54,14 +63,18 @@ export class EscenaPartida implements Escena {
       jaleo: (n) => this.jaleo(n),
       bolazo: () => this.letreroBolazo(),
       puntos: (n) => { this.sumarPuntos(n); },
-      movimiento: () => { this.movs = Math.max(0, this.movs - 1); this.txtMovs.text = String(this.movs); },
+      movimiento: () => { if (this.libre) return; this.movs = Math.max(0, this.movs - 1); this.txtMovs.text = String(this.movs); },
+      barajado: () => { void this.grande(TEXTOS.sinJugadas, 38, 0xffffff, 1500, 0); },
     }, juego.app.ticker);
     this.vista.alIntentar = (a, b) => void this.jugada(a, b);
+    this.vista.alCuchara = (p) => void this.cuchara(p);
     this.vista.alTocar = () => { juego.au.arrancar(); this.ocioMs = 0; this.quitarPista(); };
 
     this.tablero.addChild(this.vista);
-    this.container.addChild(this.tablero, this.hud, this.capaTextos);
+    this.container.addChild(this.tablero, this.hud, this.barra2, this.avisoModo, this.capaTextos);
+    this.avisoModo.visible = false;
     this.construirHud();
+    this.refrescarBarra();
     this.actualizar();
 
     this.tickFn = (t) => this.latido(t.deltaMS);
@@ -177,31 +190,152 @@ export class EscenaPartida implements Escena {
   }
 
   // ------------------------------------------------------------------ jugada
+  private liberar(): void {
+    if (this.destruida || this.terminado) return;
+    this.ocupado = false;
+    this.vista.bloqueado = false;
+  }
+
   private async jugada(a: Pos, b: Pos): Promise<void> {
     if (this.ocupado || this.terminado) return;
     this.ocupado = true;
     this.vista.bloqueado = true;
     this.quitarPista();
-    const pasos = this.partida.intercambiar(a, b);
-    await this.vista.animar(pasos);
-    this.vista.sync();
-    this.actualizar();
-    this.ocioMs = 0;
-    const fin = pasos.find((p) => p.tipo === 'fin');
-    if (fin && fin.tipo === 'fin') {
-      this.terminado = true;
-      await this.juego.tw.espera(fin.estado === 'ganado' ? 500 : 700);
-      this.mostrarResultado(fin.estado, fin.estrellas);
-      return;
+    let pasos: Paso[];
+    let libre = false;
+    try {
+      if (this.modo === 'mano') {
+        pasos = this.partida.intercambioLibre(a, b);
+        if (pasos[0]?.tipo !== 'invalido') { usarPot('manoLibre'); libre = true; this.salirModo(); }
+      } else pasos = this.partida.intercambiar(a, b);
+    } catch (e) { this.liberar(); throw e; }
+    await this.correr(pasos, libre);
+  }
+
+  /** Cuchara: rompe la bola tocada sin gastar movimiento. Se cobra solo si había algo que romper. */
+  private async cuchara(p: Pos): Promise<void> {
+    if (this.ocupado || this.terminado || this.modo !== 'cuchara') return;
+    this.ocupado = true;
+    this.vista.bloqueado = true;
+    this.quitarPista();
+    let pasos: Paso[] = [];
+    try { pasos = this.partida.usarCuchara(p); } catch (e) { this.liberar(); throw e; }
+    if (!pasos.length) { this.liberar(); return; }
+    usarPot('cuchara');
+    this.salirModo();
+    await this.correr(pasos, true);
+  }
+
+  /** Anima los pasos del motor con la misma tubería para cualquier jugada y desbloquea el tablero pase lo que pase. */
+  private async correr(pasos: Paso[], libre: boolean): Promise<void> {
+    this.libre = libre;
+    try {
+      await this.vista.animar(pasos);
+      if (this.destruida) return;
+      this.vista.sync();
+      this.actualizar();
+      this.ocioMs = 0;
+      const fin = pasos.find((p) => p.tipo === 'fin');
+      if (fin && fin.tipo === 'fin') {
+        this.terminado = true;
+        await this.juego.tw.espera(fin.estado === 'ganado' ? 500 : 700);
+        if (this.destruida) return; // salió al mapa durante la animación: no hay resultado
+        this.mostrarResultado(fin.estado, fin.estrellas);
+      }
+    } finally {
+      this.libre = false;
+      this.liberar();
+      this.refrescarBarra();
     }
-    this.ocupado = false;
-    this.vista.bloqueado = false;
   }
 
   mostrarResultado(estado: 'ganado' | 'perdido', estrellas: 0 | 1 | 2 | 3): void {
     this.terminado = true;
     this.vista.bloqueado = true;
+    this.salirModo();
+    if (estado === 'perdido') { void this.ofrecerMas5(); return; }
     this.container.addChild(crearResultado(this.juego, this.nivel, estado, estrellas, this.partida.puntos));
+  }
+
+  /** Antes de la derrota: «¿5 movimientos más?» (un +5 del inventario o monedas). */
+  private async ofrecerMas5(): Promise<void> {
+    const si = await ofertaMas5(this.juego, this.container);
+    if (this.destruida) return;
+    if (!si) { this.container.addChild(crearResultado(this.juego, this.nivel, 'perdido', 0, this.partida.puntos)); return; }
+    this.partida.sumarMovimientos(5);
+    const pasos = this.partida.asegurarJugada();
+    this.terminado = false;
+    this.ocupado = true;
+    try { if (pasos.length) await this.vista.animar(pasos); } finally {
+      this.vista.sync();
+      this.actualizar();
+      this.ocioMs = 0;
+      this.liberar();
+      this.refrescarBarra();
+    }
+  }
+
+  // ------------------------------------------------------------------ barra de potenciadores
+  private refrescarBarra(): void {
+    if (this.destruida) return;
+    const b = this.barra2;
+    b.removeChildren().forEach((c) => c.destroy({ children: true }));
+    const inv = cargarProgreso().inv;
+    const lista: { id: PotId; nombre: string }[] = [
+      { id: 'cuchara', nombre: 'Cuchara' }, { id: 'manoLibre', nombre: 'Mano libre' }, { id: 'mas5', nombre: '+5 movs' },
+    ];
+    lista.forEach((pt, i) => {
+      const c = new Container();
+      c.position.set(75 + i * 150, 0);
+      const ok = puedePot(pt.id) && !this.terminado;
+      c.addChild(new Graphics().roundRect(-68, -33, 136, 66, 16).fill({ color: ok ? 0x001b41 : 0x1a2540, alpha: 0.8 }).stroke({ width: 3, color: ok ? 0xffd92e : 0x4a5a7a, alpha: ok ? 0.9 : 0.6 }));
+      const ic = iconoPot(this.juego, pt.id); ic.scale.set(0.85); ic.position.set(-38, 0);
+      const nm = txt(pt.nombre, 13, 0xffffff); nm.position.set(20, -13);
+      nm.scale.set(Math.min(1, 66 / nm.width));
+      c.addChild(ic, nm);
+      if (inv[pt.id] > 0) { const t = txtBorde(`×${inv[pt.id]}`, 18, 0xffffff); t.position.set(20, 14); c.addChild(t); }
+      else {
+        const m = moneda(8); m.position.set(6, 14);
+        const pr = txt(String(PRECIO[pt.id]), 15, ok ? 0xffd92e : 0x8a96a8, { fontWeight: '700' }); pr.anchor.set(0, 0.5); pr.position.set(17, 14);
+        c.addChild(m, pr);
+      }
+      c.alpha = ok ? 1 : 0.45;
+      if (ok) { c.eventMode = 'static'; c.cursor = 'pointer'; c.on('pointertap', () => this.pulsarPot(pt.id)); }
+      b.addChild(c);
+    });
+  }
+
+  private pulsarPot(id: PotId): void {
+    if (this.ocupado || this.terminado || this.modo) return;
+    this.juego.au.clic();
+    this.quitarPista();
+    if (id === 'mas5') {
+      if (!usarPot('mas5')) return;
+      this.partida.sumarMovimientos(5);
+      this.actualizar();
+      this.refrescarBarra();
+      void this.grande('¡+5 movimientos!', 52, 0x7be0ff, 900, -0.04);
+      return;
+    }
+    this.modo = id === 'cuchara' ? 'cuchara' : 'mano';
+    this.vista.modoCuchara = id === 'cuchara';
+    this.barra2.visible = false;
+    const av = this.avisoModo;
+    av.removeChildren().forEach((c) => c.destroy({ children: true }));
+    const t = txtBorde(id === 'cuchara' ? EXTRA.avisoCuchara : EXTRA.avisoMano, 20, 0xffd92e);
+    t.scale.set(Math.min(1, 250 / t.width)); t.position.set(-80, 0);
+    const x = boton(EXTRA.cancelar, 120, 44, 0xe8344e, () => { this.juego.au.clic(); this.salirModo(); }, 18);
+    x.position.set(150, 0);
+    av.addChild(panel(420, 62, 0.8), t, x);
+    av.visible = true;
+  }
+
+  private salirModo(): void {
+    this.modo = null;
+    this.vista.modoCuchara = false;
+    this.avisoModo.visible = false;
+    this.barra2.visible = true;
+    this.refrescarBarra();
   }
 
   // ------------------------------------------------------------------ pista, temblor, textos
@@ -254,7 +388,10 @@ export class EscenaPartida implements Escena {
 
   // ------------------------------------------------------------------ Escena
   layout(dh: number): void {
-    const libreAlto = dh - ALTO_HUD - 16, libreAncho = DW - 20;
+    const libreAlto = dh - ALTO_HUD - 16 - ALTO_BARRA, libreAncho = DW - 20;
+    const yBarra = dh - ALTO_BARRA / 2 - 6;
+    this.barra2.position.set(0, yBarra);
+    this.avisoModo.position.set(DW / 2, yBarra);
     const s = Math.min(libreAncho / this.vista.ancho, libreAlto / this.vista.alto, 1.1);
     this.vista.scale.set(s);
     this.base.x = (DW - this.vista.ancho * s) / 2;
@@ -263,6 +400,7 @@ export class EscenaPartida implements Escena {
   }
 
   destroy(): void {
+    this.destruida = true;
     this.juego.app.ticker.remove(this.tickFn);
     this.container.destroy({ children: true });
   }

@@ -1,13 +1,15 @@
 // Aplicación: arranque de Pixi, fondo, escalado a cualquier pantalla, cambio de escena y depuración.
 import { Application, Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Especial, Partida } from '../motor/index.ts';
-import { EPISODIO_1 } from '../datos/niveles.ts';
+import { nivel as nivelDe } from '../datos/episodios.ts';
 import { Sonido } from './audio.ts';
 import { Texturas } from './dibujo.ts';
 import { Tweens } from './tween.ts';
 import { EscenaPartida } from './partida.ts';
-import { cargarHitos, EscenaFicha, EscenaMapa } from './pantallas.ts';
-import { DW } from './ui.ts';
+import { EscenaFicha } from './pantallas.ts';
+import { cargarHitos, EscenaMapa } from './mapa.ts';
+import { ventanaRegalo } from './enganche.ts';
+import { DW, regaloPendiente } from './ui.ts';
 
 export interface Escena { container: Container; layout(dh: number): void; destroy(): void }
 
@@ -57,6 +59,7 @@ export class Juego {
     window.addEventListener('pointerdown', () => this.au.arrancar(), { capture: true });
     this.irMapa();
     this.ajustar();
+    this.regaloSiToca();
   }
 
   private async cargar(url: string): Promise<Texture | null> {
@@ -132,14 +135,20 @@ export class Juego {
 
   irMapa(): void { this.poner(new EscenaMapa(this, this.hitos)); }
 
+  /** Al arrancar: si toca el regalo diario, ventana con la racha; al cerrarla el mapa se repinta con las monedas nuevas. */
+  private regaloSiToca(): void {
+    const dia = regaloPendiente();
+    if (dia === null) return;
+    this.root.addChild(ventanaRegalo(this, dia, () => this.irMapa()));
+  }
+
   irFicha(id: number): void {
-    const n = EPISODIO_1.niveles.find((x) => x.id === id);
-    if (n) this.poner(new EscenaFicha(this, n));
+    this.poner(new EscenaFicha(this, nivelDe(id)));
   }
 
   irPartida(id: number, potenciadores: Especial[] = []): void {
-    const n = EPISODIO_1.niveles.find((x) => x.id === id);
-    if (!n) return;
+    // Fran 17-10: cada partida empieza con las bolas en otro sitio, aunque sea el mismo nivel (la semilla del nivel es solo para tests y calibración).
+    const n = { ...nivelDe(id), semilla: (Math.random() * 2 ** 31) | 0 };
     this.nivelActual = id;
     const e = new EscenaPartida(this, n, potenciadores);
     this.escena?.destroy();

@@ -1,11 +1,14 @@
 // Calibra niveles con un bot voraz: node scripts/calibrar.ts [--n=200] [--nivel=3] [--auto] [--mov=17] [--escribir]
+//  Niveles infinitos: --desde=16 --hasta=45 mide la tasa de victoria real de nivel(id) contra la meta (--ajustar: saca los datos para la FORMULA, --salida=fichero)
 //  sin --auto: mide los niveles tal cual están en src/datos/niveles.ts
 //  --auto: busca los movimientos mínimos (15-35) que dan la tasa objetivo y fija estrellas (2ª = p60, 3ª = p90)
 //  --escribir: reescribe movimientos y estrellas en niveles.ts (con --auto)
-import { readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { Partida, crearAzar } from '../src/motor/index.ts';
 import type { Nivel, Pos } from '../src/motor/index.ts';
 import { EPISODIO_1 } from '../src/datos/niveles.ts';
+import { nivel } from '../src/datos/episodios.ts';
+import { caracteristicas, tasaMeta } from '../src/datos/generador.ts';
 
 const arg = (k: string, d?: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split('=')[1] ?? d;
 const N = Number(arg('n', '200'));
@@ -82,6 +85,66 @@ function medir(base: Nivel, movs: number, partidas: number): Medida {
   return { tasaObj: ok / partidas, pts };
 }
 
+// ------------------------------------------------------------------ niveles infinitos (--desde / --hasta)
+const DESDE = arg('desde') ? Number(arg('desde')) : 0;
+const HASTA = arg('hasta') ? Number(arg('hasta')) : DESDE;
+const AJUSTAR = process.argv.includes('--ajustar');
+const SALIDA = arg('salida');
+
+if (DESDE) {
+  const lineas: string[] = [];
+  for (let id = DESDE; id <= HASTA; id++) {
+    const t0 = Date.now();
+    const base = nivel(id), meta = tasaMeta(id), tipo = base.objetivo.tipo;
+    if (arg('tipo') && arg('tipo') !== tipo) continue;
+    if (AJUSTAR) {
+      // Datos para ajustar la FORMULA: movimientos con los que el bot gana el 50, 65 y 80 % (interpolado) y puntos a esos movimientos.
+      // Puntos: no hay objetivo aparte; se miden los puntos a varios movimientos.
+      const car = caracteristicas(base);
+      const curva: [number, number][] = [];
+      const pts: Record<number, number[]> = {};
+      const pasoM = tipo === 'puntos' ? 6 : 3;
+      const m0 = tipo === 'puntos' ? 14 : Math.max(3, Math.round(base.movimientos * 0.25));
+      const mFin = tipo === 'puntos' ? 26 : Math.round(base.movimientos * 3);
+      for (let m = m0; m <= mFin; m += pasoM) {
+        const r = medir(base, m, N);
+        curva.push([m, r.tasaObj]); pts[m] = r.pts;
+        if (tipo !== 'puntos' && r.tasaObj >= 0.93) break;
+      }
+      const cruce = (q: number) => {
+        for (let i = 0; i < curva.length; i++) if (curva[i][1] >= q) {
+          if (i === 0) return curva[0][0];
+          const [m1, t1] = curva[i - 1], [m2, t2] = curva[i];
+          return m1 + ((q - t1) / Math.max(1e-9, t2 - t1)) * (m2 - m1);
+        }
+        return curva[curva.length - 1][0] + pasoM;
+      };
+      const reg = { id, tipo, car, meta, movGen: base.movimientos, m50: cruce(0.5), m65: cruce(0.65), m80: cruce(0.8),
+        pts: Object.fromEntries(Object.entries(pts).map(([m, v]) => [m, [pct(v, 0.1), pct(v, 0.5), pct(v, 0.9)]])) };
+      lineas.push(JSON.stringify(reg));
+      if (SALIDA) appendFileSync(SALIDA, lineas[lineas.length - 1] + '\n');
+      console.log(`${id} ${tipo} gen ${base.movimientos} m50 ${reg.m50.toFixed(1)} m65 ${reg.m65.toFixed(1)} m80 ${reg.m80.toFixed(1)} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
+    } else {
+      // Validación: se juega el nivel tal cual lo da nivel(id) y se mira la tasa de victoria real (objetivo y, en puntos, 1ª estrella).
+      let ganadas = 0, estrellas = 0;
+      const pts: number[] = [];
+      for (let i = 0; i < N; i++) {
+        const r = jugar({ ...base, semilla: base.semilla * 1000 + i });
+        pts.push(r.puntos);
+        if (r.gano) { ganadas++; estrellas += base.estrellas.filter((e) => r.puntos >= e).length; }
+      }
+      const tasa = ganadas / N;
+      const ok = Math.abs(tasa - meta) <= 0.12;
+      const linea = `${String(id).padStart(3)} | ${tipo.padEnd(9)} | ${String(base.movimientos).padStart(2)} mov | meta ${(meta * 100).toFixed(0)}% | bot ${(tasa * 100).toFixed(0)}% ${ok ? 'ok' : '**'} | est ${(ganadas ? estrellas / ganadas : 0).toFixed(1)} | p50 ${pct(pts, 0.5)} (${((Date.now() - t0) / 1000).toFixed(0)}s)`;
+      lineas.push(linea);
+      if (SALIDA) appendFileSync(SALIDA, linea + '\n');
+      console.log(linea);
+    }
+  }
+  process.exit(0);
+}
+
+// ------------------------------------------------------------------ episodio 1 (a mano)
 const filas: string[] = [];
 const cambios: { id: number; mov: number; est: [number, number, number] }[] = [];
 for (const base of EPISODIO_1.niveles) {
@@ -92,20 +155,19 @@ for (const base of EPISODIO_1.niveles) {
   let mov = base.movimientos, m: Medida;
   if (AUTO && arg('mov')) mov = Number(arg('mov'));
   else if (AUTO && !puntos) {
-    // Movimientos mínimos (pasos de 1, rango jugable 15-35) con tasa de objetivo ≥ meta/0.97 (la estrella 1 se fija en p3 de los que ganan).
+    // Movimientos mínimos (pasos de 1, rango jugable 15-35) con tasa de objetivo ≥ meta.
     mov = 15;
-    for (;; mov++) { if (medir(base, mov, 50).tasaObj >= meta / 0.97 + 0.02 || mov >= 35) break; }
+    for (;; mov++) { if (medir(base, mov, 50).tasaObj >= meta + 0.02 || mov >= 35) break; }
   }
   m = medir(base, mov, N);
   let est = base.estrellas;
   if (AUTO) {
-    const ganadoras = puntos ? m.pts : m.pts.filter(() => true);
-    const e0 = r100(puntos ? pct(m.pts, 1 - meta) * 0.98 : Math.min(pct(ganadoras, 0.03), pct(ganadoras, 0.4)));
+    const e0 = r100(puntos ? pct(m.pts, 1 - meta) * 0.98 : pct(m.pts, 0.3));
     const e1 = Math.max(r100(pct(m.pts, 0.6)), e0 + 100), e2 = Math.max(r100(pct(m.pts, 0.9)), e1 + 100);
     est = [e0, e1, e2];
   }
-  // Tasa real de victoria con esas estrellas (objetivo cumplido y puntos ≥ estrella 1).
-  const vic = puntos ? m.pts.filter((x) => x >= est[0]).length / m.pts.length : m.tasaObj * (m.pts.filter((x) => x >= est[0]).length / m.pts.length);
+  // Tasa real de victoria: puntos → puntos ≥ estrella 1; resto → objetivo cumplido (la estrella 1 ya no hace falta).
+  const vic = puntos ? m.pts.filter((x) => x >= est[0]).length / m.pts.length : m.tasaObj;
   filas.push(`${String(base.id).padStart(2)} | ${String(mov).padStart(3)} | ${est.join(' / ')} | ${(vic * 100).toFixed(0)}% | p10 ${pct(m.pts, 0.1)} p50 ${pct(m.pts, 0.5)} p90 ${pct(m.pts, 0.9)} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);
   console.log(filas[filas.length - 1]);
   cambios.push({ id: base.id, mov, est });

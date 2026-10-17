@@ -11,12 +11,14 @@ import type { Nivel } from '../motor/tipos.ts';
 //   7 | 15 | 12500 / 20800 / 28200 | 95% | 19820
 //   8 | 16 | 8000 / 14200 / 20000 | 91% | 13400
 //   9 | 26 | 25200 / 38900 / 50900 | 82% | 37200
-//  10 | 31 | 34200 / 42500 / 48200 | 87% | 41400
+//  10 | 22 | 37800 / 41000 / 46100 | 81% | 39920 (recalibrado tras la entrada segura de la 3.ª carapina)
 //  11 | 25 | 48400 / 60300 / 85100 | 69% | 55540
 //  12 | 26 | 59300 / 74400 / 101000 | 67% | 67960
 //  13 | 15 | 32900 / 46500 / 55900 | 86% | 43560
 //  14 | 18 | 6100 / 11900 / 15900 | 62% | 10780
 //  15 | 17 | 39900 / 50700 / 58400 | 43% | 49160
+// Ganar: en niveles de objetivo basta cumplirlo (siempre 3 estrellas; las de la tabla son solo informativas); en puntos hace falta la 1ª estrella. Textos de 7, 8 y 15 corregidos
+// (el nivel 15 es de manchas). Tasas medidas con el bot, sin cambios.
 // Sabores por índice: 0 Fresa, 1 Mango, 2 Limón, 3 Pistacho, 4 Chocolate Belga, 5 Mora.
 
 // Niveles de puntos (1-3, 11, 12): 1ª estrella = p15 de un jugador que mueve al azar (la saca casi cualquiera; en 1-3, tutorial, la mitad),
@@ -58,13 +60,13 @@ export const EPISODIO_1: { nombre: string; tienda: string; niveles: Nivel[] } = 
       id: 7, nombre: 'Pedido de Fanny', sabores: 5, movimientos: 15, semilla: 107,
       objetivo: { tipo: 'pedido', pedido: [{ sabor: 0, n: 20 }, { sabor: 3, n: 20 }] }, estrellas: [12500, 20800, 28200],
       forma: ['.ooooooo.', 'ooooooooo', 'ooooooooo', 'ooooooooo', 'ooooooooo', 'ooooooooo', '.ooooooo.'],
-      presenta: { quien: 'fanny', texto: "Illo, hay una clienta que quiere fresa y pistacho: 16 de cada, pa'lante." },
+      presenta: { quien: 'fanny', texto: "Illo, hay una clienta que quiere fresa y pistacho: 20 de cada, pa'lante." },
     },
     {
       id: 8, nombre: 'Tres sabores', sabores: 5, movimientos: 16, semilla: 108,
       objetivo: { tipo: 'pedido', pedido: [{ sabor: 0, n: 15 }, { sabor: 1, n: 15 }, { sabor: 2, n: 15 }] }, estrellas: [8000, 14200, 20000],
       forma: ['ooooooooo', 'ooooooooo', 'ooo.o.ooo', 'ooooooooo', 'ooooooooo', '.ooooooo.'],
-      presenta: { quien: 'marcos', texto: 'Pedido grande para una cena: doce de fresa, doce de mango y doce de limón.' },
+      presenta: { quien: 'marcos', texto: 'Pedido grande para una cena: quince de fresa, quince de mango y quince de limón.' },
     },
     {
       id: 9, nombre: 'Carapinas al congelador', sabores: 5, movimientos: 26, semilla: 109, objetivo: { tipo: 'carapinas', n: 2 }, estrellas: [25200, 38900, 50900],
@@ -72,8 +74,8 @@ export const EPISODIO_1: { nombre: string; tienda: string; niveles: Nivel[] } = 
       presenta: { quien: 'marcos', texto: 'Las carapinas hay que bajarlas al congelador. Limpia lo que tengan debajo.' },
     },
     {
-      id: 10, nombre: 'Lluvia de carapinas', sabores: 5, movimientos: 31, semilla: 110,
-      objetivo: { tipo: 'carapinas', n: 3 }, carapinasPorSalir: 1, estrellas: [34200, 42500, 48200],
+      id: 10, nombre: 'Lluvia de carapinas', sabores: 5, movimientos: 22, semilla: 110,
+      objetivo: { tipo: 'carapinas', n: 3 }, carapinasPorSalir: 1, estrellas: [37800, 41000, 46100],
       forma: ['ooooooooo', 'oocooocoo', 'ooooooooo', 'sssssssss'],
     },
     {
@@ -97,7 +99,7 @@ export const EPISODIO_1: { nombre: string; tienda: string; niveles: Nivel[] } = 
       presenta: { quien: 'fanny', texto: 'Mi arma, esta clienta es de las exigentes: mango, chocolate belga y mora, catorce de cada.' },
     },
     {
-      id: 15, nombre: 'El gran pedido de Herbolarios', sabores: 6, movimientos: 17, semilla: 115, objetivo: { tipo: 'manchas' }, estrellas: [39900, 50700, 58400],
+      id: 15, nombre: 'El gran mostrador de Herbolarios', sabores: 6, movimientos: 17, semilla: 115, objetivo: { tipo: 'manchas' }, estrellas: [39900, 50700, 58400],
       forma: ['.ooooooo.', 'oMMoooMMo', 'oMMMoMMMo', 'ooMMMMMoo', 'oommMmmoo', 'ooooooooo', 'ooooooooo', 'EEEoooEEE'],
       presenta: { quien: 'pablo', texto: 'Inspección de fin de episodio. Mostrador doble y escarcha gorda. Sin excusas.' },
     },
