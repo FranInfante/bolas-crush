@@ -226,7 +226,11 @@ export function crearResultado(juego: Juego, nivel: Nivel, estado: 'ganado' | 'p
     }
     if (ep !== null && !raiz.destroyed) { // cofre al completar el episodio (una sola vez)
       const premioCofre = abrirCofre(ep);
-      if (premioCofre) await mostrarCofre(juego, raiz, ep, premioCofre);
+      if (premioCofre) {
+        c.visible = false; // que no se transparente «Nivel superado» detrás del cofre
+        await mostrarCofre(juego, raiz, ep, premioCofre);
+        c.visible = true;
+      }
     }
     if (raiz.destroyed) return;
     await tw.to(250, (v) => { botones.alpha = v; });
