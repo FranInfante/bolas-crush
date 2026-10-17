@@ -5,7 +5,7 @@ import { episodioDe, esDificil, NIVELES_POR_EPISODIO as POR_EP } from '../datos/
 import { PERSONAJE } from '../datos/equipo.ts';
 import type { Juego, Escena } from './app.ts';
 import { estrella } from './dibujo.ts';
-import { avatar, cargarProgreso, DW, fmt, moneda, panel, totalEstrellas, txt, txtBorde } from './ui.ts';
+import { busto, cargarProgreso, DW, fmt, moneda, panel, totalEstrellas, txt, txtBorde } from './ui.ts';
 import type { Guardado } from './ui.ts';
 import { EXTRA } from './textos-extra.ts';
 
@@ -113,7 +113,7 @@ export class EscenaMapa implements Escena {
     const ep = episodioDe((e - 1) * POR_EP + 1);
     const c = new Container();
     c.position.set(DW / 2, e === 1 ? 112 : (mundoY(e * POR_EP - POR_EP - 1) + mundoY((e - 1) * POR_EP)) / 2);
-    const p = PERSONAJE[ep.quien];
+    const p = ep.quien === 'rocio' ? PERSONAJE.rocio : undefined; // solo Rocío tiene retrato: el resto, sin bola con letra
     c.addChild(panel(390, 66, 0.9));
     const t = txtBorde(`${EXTRA.episodio(ep.n)} · ${ep.nombre}`, 21, 0xffd92e);
     t.scale.set(Math.min(1, (p ? 280 : 350) / t.width));
@@ -122,7 +122,7 @@ export class EscenaMapa implements Escena {
     const x = p ? 26 : 0;
     t.position.set(x, -11); s.position.set(x, 14);
     c.addChild(t, s);
-    if (p) { const a = avatar(p, 20, 0); a.position.set(-165, 0); c.addChild(a); }
+    if (p) { const a = busto(p, 20, 22, 0); a.position.set(-165, 2); c.addChild(a); }
     return c;
   }
 
