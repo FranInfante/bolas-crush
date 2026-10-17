@@ -14,7 +14,8 @@ export interface Progreso {
   pedido: { sabor: Sabor; n: number }[];
 }
 
-interface Corrida { celdas: Pos[]; h: boolean; sabor: Sabor }
+/** Línea de 3+ (h = horizontal) o cuadrado 2x2 (`cuadro`). */
+interface Corrida { celdas: Pos[]; h: boolean; sabor: Sabor; cuadro?: true }
 interface Grupo { celdas: Pos[]; corridas: Corrida[]; sabor: Sabor }
 interface Detonacion { pos: Pos; ficha: Ficha }
 interface Pendiente { pos: Pos; radio: number; combo?: Especial }
@@ -32,6 +33,9 @@ const PTS_BOLA = 60;
 const PTS_RAYA = 120;
 const PTS_TARRINA = 200;
 const PTS_BOLABOLAS = 200;
+const PTS_SACABOLAS = 120;
+/** Matches al lado (o golpes) que necesita una pala de helado para soltar una carapina. */
+export const PALA_MAX = 3;
 const PTS_CARAPINA = 10000;
 const PTS_MANCHA = 1000;
 const PTS_ESCARCHA = 20;
@@ -77,6 +81,7 @@ export class Partida {
       escarcha: (ch === 'e' ? 1 : ch === 'E' ? 2 : 0) as 0 | 1 | 2,
       candado: ch === 'k' || ch === 'K',
       salida: ch === 's',
+      ...(ch === 'p' ? { pala: 0 } : {}),
     })));
     this.llenarInicial();
   }
@@ -135,7 +140,7 @@ export class Partida {
   usarCuchara(p: Pos): Paso[] {
     const ce = this.celda(p);
     if (this.estado !== 'jugando' || !ce?.existe) return [];
-    if (ce.ficha ? ce.ficha.tipo === 'carapina' : ce.escarcha === 0) return [];
+    if (ce.ficha ? ce.ficha.tipo === 'carapina' : ce.escarcha === 0 && ce.pala === undefined) return [];
     const pasos: Paso[] = [];
     this.ctx = { cascada: 0, cola: [], danadas: new Set(), creoEspecial: false, combo: null };
     const cascada = this.ciclo(pasos, [], () => this.limpiar(pasos, [p], -1));
@@ -229,12 +234,8 @@ export class Partida {
     if (!normales.length) return [];
     for (let intento = 0; intento < 300; intento++) {
       for (const p of normales) {
-        const prohibidos = new Set<Sabor>();
         this.tablero[p.f][p.c].ficha = null;
-        const a = this.saborDe(p.f, p.c - 1), b = this.saborDe(p.f, p.c - 2);
-        if (a >= 0 && a === b) prohibidos.add(a);
-        const u = this.saborDe(p.f - 1, p.c), v = this.saborDe(p.f - 2, p.c);
-        if (u >= 0 && u === v) prohibidos.add(u);
+        const prohibidos = this.prohibidos(p);
         const libres = Array.from({ length: this.nivel.sabores }, (_, i) => i).filter((s) => !prohibidos.has(s));
         this.tablero[p.f][p.c].ficha = this.nuevaFicha('bola', this.azar.elegir(libres.length ? libres : [0]));
       }
@@ -275,18 +276,25 @@ export class Partida {
     for (let intento = 0; intento < 200; intento++) {
       this.recorrer((p, ce) => {
         ce.ficha = null;
-        if (ce.escarcha > 0) return;
+        if (ce.escarcha > 0 || ce.pala !== undefined) return;
         if (this.nivel.forma[p.f][p.c] === 'c') { ce.ficha = this.nuevaFicha('carapina', -1); return; }
-        const prohibidos = new Set<Sabor>();
-        const a = this.saborDe(p.f, p.c - 1), b = this.saborDe(p.f, p.c - 2);
-        if (a >= 0 && a === b) prohibidos.add(a);
-        const u = this.saborDe(p.f - 1, p.c), v = this.saborDe(p.f - 2, p.c);
-        if (u >= 0 && u === v) prohibidos.add(u);
+        const prohibidos = this.prohibidos(p);
         const libres = Array.from({ length: this.nivel.sabores }, (_, i) => i).filter((s) => !prohibidos.has(s));
         ce.ficha = this.nuevaFicha('bola', this.azar.elegir(libres));
       });
       if (this.pista()) return;
     }
+  }
+
+  /** Sabores que no pueden ir en `p` al rellenar de arriba-izquierda a abajo-derecha: harían trío o cuadrado 2x2. */
+  private prohibidos(p: Pos): Set<Sabor> {
+    const r = new Set<Sabor>();
+    const a = this.saborDe(p.f, p.c - 1), b = this.saborDe(p.f, p.c - 2);
+    if (a >= 0 && a === b) r.add(a);
+    const u = this.saborDe(p.f - 1, p.c), v = this.saborDe(p.f - 2, p.c);
+    if (u >= 0 && u === v) r.add(u);
+    if (a >= 0 && a === u && a === this.saborDe(p.f - 1, p.c - 1)) r.add(a);
+    return r;
   }
 
   // ------------------------------------------------------------------ swap
@@ -300,7 +308,12 @@ export class Partida {
     const s = this.saborDe(p.f, p.c);
     if (s < 0) return false;
     return 1 + this.corrida(p.f, p.c, 0, 1, s) + this.corrida(p.f, p.c, 0, -1, s) >= 3
-      || 1 + this.corrida(p.f, p.c, 1, 0, s) + this.corrida(p.f, p.c, -1, 0, s) >= 3;
+      || 1 + this.corrida(p.f, p.c, 1, 0, s) + this.corrida(p.f, p.c, -1, 0, s) >= 3
+      || [[0, 0], [0, -1], [-1, 0], [-1, -1]].some(([df, dc]) => this.esCuadro(p.f + df, p.c + dc, s));
+  }
+  /** ¿Cuadrado 2x2 del sabor `s` con esquina arriba-izquierda en (f, c)? */
+  private esCuadro(f: number, c: number, s: Sabor): boolean {
+    return s >= 0 && this.saborDe(f, c) === s && this.saborDe(f, c + 1) === s && this.saborDe(f + 1, c) === s && this.saborDe(f + 1, c + 1) === s;
   }
 
   private valido(a: Pos, b: Pos): boolean {
@@ -335,7 +348,11 @@ export class Partida {
       if (s >= 0 && e - f >= 2) corridas.push({ h: false, sabor: s, celdas: Array.from({ length: e - f + 1 }, (_, i) => ({ f: f + i, c })) });
       f = e + 1;
     }
-    // Corridas que comparten una celda (cruces L/T) forman un mismo grupo.
+    for (let f = 0; f + 1 < this.filas; f++) for (let c = 0; c + 1 < this.cols; c++) {
+      const s = this.saborDe(f, c);
+      if (this.esCuadro(f, c, s)) corridas.push({ h: false, cuadro: true, sabor: s, celdas: [{ f, c }, { f, c: c + 1 }, { f: f + 1, c }, { f: f + 1, c: c + 1 }] });
+    }
+    // Corridas que comparten una celda (cruces L/T, cuadrados pegados a una línea) forman un mismo grupo.
     const porCelda = new Map<string, number[]>();
     corridas.forEach((r, i) => r.celdas.forEach((p) => porCelda.set(clave(p), [...(porCelda.get(clave(p)) ?? []), i])));
     const visto = new Set<number>();
@@ -359,22 +376,26 @@ export class Partida {
     return grupos;
   }
 
-  /** 5 en línea → bolaBolas; L/T → tarrina; 4 → raya perpendicular a la línea. */
+  /** 5 en línea → bolaBolas; L/T → tarrina; 4 → raya perpendicular a la línea; cuadrado 2x2 → sacabolas. */
   private decidirEspecial(g: Grupo, preferidas: Pos[]): { pos: Pos; especial: Especial } | null {
-    const largo = Math.max(...g.corridas.map((r) => r.celdas.length));
+    const lineas = g.corridas.filter((r) => !r.cuadro);
+    const largo = Math.max(0, ...lineas.map((r) => r.celdas.length));
     let especial: Especial, ideal: Pos;
     if (largo >= 5) {
-      const r = g.corridas.find((x) => x.celdas.length >= 5)!;
+      const r = lineas.find((x) => x.celdas.length >= 5)!;
       especial = 'bolaBolas';
       ideal = r.celdas[Math.floor(r.celdas.length / 2)];
-    } else if (g.corridas.some((r) => r.h) && g.corridas.some((r) => !r.h)) {
+    } else if (lineas.some((r) => r.h) && lineas.some((r) => !r.h)) {
       especial = 'tarrina';
-      const enH = new Set(g.corridas.filter((r) => r.h).flatMap((r) => r.celdas.map(clave)));
-      ideal = g.celdas.find((p) => enH.has(clave(p)) && g.corridas.some((r) => !r.h && r.celdas.some((q) => igual(p, q)))) ?? g.celdas[0];
+      const enH = new Set(lineas.filter((r) => r.h).flatMap((r) => r.celdas.map(clave)));
+      ideal = g.celdas.find((p) => enH.has(clave(p)) && lineas.some((r) => !r.h && r.celdas.some((q) => igual(p, q)))) ?? g.celdas[0];
     } else if (largo === 4) {
-      const r = g.corridas.find((x) => x.celdas.length === 4)!;
+      const r = lineas.find((x) => x.celdas.length === 4)!;
       especial = r.h ? 'rayaV' : 'rayaH';
       ideal = r.celdas[1];
+    } else if (g.corridas.some((r) => r.cuadro)) {
+      especial = 'sacabolas';
+      ideal = g.corridas.find((r) => r.cuadro)!.celdas[0];
     } else return null;
     const enGrupo = new Set(g.celdas.map(clave));
     const sirve = (p: Pos) => { const ce = this.celda(p)!; return !!ce.ficha && !ce.candado && ce.ficha.especial === 'ninguno'; };
@@ -435,17 +456,46 @@ export class Partida {
       const ce = this.celda(crea.pos)!;
       const ficha: Ficha = { ...ce.ficha!, especial: crea.especial, sabor: crea.especial === 'bolaBolas' ? -1 : ce.ficha!.sabor };
       ce.ficha = ficha;
-      this.puntos += crea.especial === 'tarrina' ? PTS_TARRINA : crea.especial === 'bolaBolas' ? PTS_BOLABOLAS : PTS_RAYA;
+      this.puntos += crea.especial === 'tarrina' ? PTS_TARRINA : crea.especial === 'bolaBolas' ? PTS_BOLABOLAS : crea.especial === 'sacabolas' ? PTS_SACABOLAS : PTS_RAYA;
       this.ctx.creoEspecial = true;
       pasos.push({ tipo: 'crearEspecial', pos: crea.pos, ficha: copia(ficha) }, ...lateral);
     }
-    // Un match al lado de una escarcha le quita una capa.
+    // Un match al lado de una escarcha le quita una capa; al lado de una pala, la llena.
     const lateral: Paso[] = [];
     for (const g of grupos) for (const p of g.celdas) for (const [df, dc] of DIRS) {
       const q = { f: p.f + df, c: p.c + dc };
       if ((this.celda(q)?.escarcha ?? 0) > 0) this.dañarEscarcha(q, lateral);
+      else if (this.celda(q)?.pala !== undefined) this.llenarPala(q, lateral);
     }
     pasos.push(...lateral);
+  }
+
+  /**
+   * La pala recibe un golpe (una vez por ronda). Al llegar a PALA_MAX suelta una carapina en la casilla de abajo (o a un
+   * lado, o arriba) si está vacía o tiene una bola normal sin candado, y vuelve a 0. Si no hace falta otra carapina
+   * (las del tablero y las que faltan por entrar ya cubren el objetivo) o no hay sitio, se queda llena.
+   */
+  private llenarPala(p: Pos, lateral: Paso[]): void {
+    const ce = this.celda(p)!;
+    if (ce.pala === undefined || this.ctx.danadas.has(clave(p))) return;
+    this.ctx.danadas.add(clave(p));
+    ce.pala = Math.min(PALA_MAX, ce.pala + 1);
+    const o = this.nivel.objetivo;
+    const enJuego = this.tablero.flat().filter((c) => c.ficha?.tipo === 'carapina').length + this.porEntrar;
+    const hace = o.tipo === 'carapinas' && this.salidas + enJuego < o.n;
+    const hasta = ce.pala < PALA_MAX || !hace ? undefined : [[1, 0], [0, -1], [0, 1], [-1, 0]]
+      .map(([df, dc]) => ({ f: p.f + df, c: p.c + dc }))
+      .find((q) => {
+        const v = this.celda(q);
+        return !!v?.existe && !v.candado && v.escarcha === 0 && v.pala === undefined && (!v.ficha || (v.ficha.tipo === 'bola' && v.ficha.especial === 'ninguno'));
+      });
+    if (!hasta) { lateral.push({ tipo: 'pala', pos: p, carga: ce.pala, max: PALA_MAX }); return; }
+    const destino = this.celda(hasta)!;
+    const quitaId = destino.ficha?.id;
+    const ficha = this.nuevaFicha('carapina', -1);
+    destino.ficha = ficha;
+    ce.pala = 0;
+    lateral.push({ tipo: 'pala', pos: p, carga: 0, max: PALA_MAX, suelta: { ficha: copia(ficha), hasta, ...(quitaId ? { quitaId } : {}) } });
   }
 
   private dañarEscarcha(p: Pos, lateral: Paso[]): void {
@@ -476,7 +526,7 @@ export class Partida {
       const ce = this.celda(p);
       if (!ce || !ce.existe) continue;
       const fi = ce.ficha;
-      if (!fi) { if (ce.escarcha > 0) this.dañarEscarcha(p, lateral); continue; }
+      if (!fi) { if (ce.escarcha > 0) this.dañarEscarcha(p, lateral); else if (ce.pala !== undefined) this.llenarPala(p, lateral); continue; }
       if (fi.tipo === 'carapina') continue; // las carapinas solo salen por abajo
       if (ce.candado) { ce.candado = false; lateral.push({ tipo: 'candado', pos: p }); continue; }
       ce.ficha = null;
@@ -524,6 +574,7 @@ export class Partida {
     while (cola.length) {
       const { pos, ficha } = cola.shift()!;
       const esp = ficha.especial;
+      if (esp === 'sacabolas') { this.detonarSacabolas(pasos, pos); continue; }
       let celdas: Pos[];
       if (esp === 'rayaH') celdas = this.existentes(this.fila(pos.f));
       else if (esp === 'rayaV') celdas = this.existentes(this.columna(pos.c));
@@ -558,7 +609,7 @@ export class Partida {
         for (const p of conjunto) {
           const ce = this.celda(p)!;
           if (ce.ficha!.especial !== 'ninguno') continue;
-          const esp: Especial = otro.especial === 'tarrina' ? 'tarrina' : this.azar.siguiente() < 0.5 ? 'rayaH' : 'rayaV';
+          const esp: Especial = otro.especial === 'tarrina' || otro.especial === 'sacabolas' ? otro.especial : this.azar.siguiente() < 0.5 ? 'rayaH' : 'rayaV';
           ce.ficha = { ...ce.ficha!, especial: esp };
           pasos.push({ tipo: 'crearEspecial', pos: p, ficha: copia(ce.ficha) });
         }
@@ -566,6 +617,12 @@ export class Partida {
       const celdas = [...conjunto, bbPos];
       pasos.push({ tipo: 'detonar', pos: bbPos, especial: 'bolaBolas', ...(otro.especial !== 'ninguno' ? { combo: otro.especial } : {}), celdas });
       this.limpiar(pasos, celdas, -1);
+    } else if (X.especial === 'sacabolas' || Y.especial === 'sacabolas') {
+      // Sacabolas + sacabolas: salen 3. Sacabolas + raya / tarrina: vuela con ella y la suelta en el destino.
+      const otra = X.especial === 'sacabolas' ? Y.especial : X.especial;
+      X.especial = Y.especial = 'ninguno';
+      c.combo = 'dos';
+      this.detonarSacabolas(pasos, b, otra === 'sacabolas' ? 'ninguno' : otra, otra === 'sacabolas' ? 3 : 1);
     } else {
       const ea = X.especial, eb = Y.especial;
       X.especial = Y.especial = 'ninguno';
@@ -582,6 +639,54 @@ export class Partida {
       pasos.push({ tipo: 'detonar', pos: b, especial: ea, combo: eb, celdas });
       this.limpiar(pasos, celdas, -1);
     }
+  }
+
+  /**
+   * Sacabolas: quita su casilla y la cruz de alrededor (arriba, abajo, lados) y luego vuela `vuelos` veces a una casilla
+   * del objetivo (ver destinoVuelo) y la rompe. Con `carga` (combo) suelta allí la raya o la tarrina.
+   */
+  private detonarSacabolas(pasos: Paso[], pos: Pos, carga: Especial = 'ninguno', vuelos = 1): void {
+    const cruz = this.existentes([pos, ...DIRS.map(([df, dc]) => ({ f: pos.f + df, c: pos.c + dc }))]);
+    pasos.push({ tipo: 'detonar', pos, especial: 'sacabolas', ...(carga !== 'ninguno' ? { combo: carga } : {}), celdas: cruz });
+    this.limpiar(pasos, cruz, -1);
+    const usados = new Set<string>();
+    for (let i = 0; i < vuelos; i++) {
+      const hasta = this.destinoVuelo(usados);
+      if (!hasta) break;
+      usados.add(clave(hasta));
+      pasos.push({ tipo: 'vuelo', desde: pos, hasta, carga });
+      let celdas = [hasta];
+      if (carga === 'rayaH') celdas = this.existentes(this.fila(hasta.f));
+      else if (carga === 'rayaV') celdas = this.existentes(this.columna(hasta.c));
+      else if (carga === 'tarrina') { celdas = this.cuadrado(hasta, 1); this.pendientes.push({ pos: hasta, radio: 1 }); }
+      if (carga !== 'ninguno') pasos.push({ tipo: 'detonar', pos: hasta, especial: carga, celdas });
+      this.limpiar(pasos, celdas, -1);
+    }
+  }
+
+  /**
+   * A dónde vuela el sacabolas (como el avioncito de Candy Crush): primero lo que pide el objetivo (mancha, bola del pedido,
+   * la casilla bajo una carapina o una pala), luego escarcha, luego candados y si no, cualquier bola. Al azar dentro del grupo.
+   */
+  private destinoVuelo(usados: Set<string>): Pos | null {
+    const o = this.nivel.objetivo;
+    const listas: Pos[][] = [[], [], [], []];
+    this.recorrer((p, ce) => {
+      if (usados.has(clave(p))) return;
+      const fi = ce.ficha;
+      if (!fi) {
+        if (ce.escarcha > 0) listas[1].push(p);
+        else if (ce.pala !== undefined && o.tipo === 'carapinas') listas[0].push(p);
+        return;
+      }
+      if (fi.tipo === 'carapina') return;
+      if ((o.tipo === 'manchas' && ce.mancha > 0)
+        || (o.tipo === 'pedido' && this.pedidoRestante.some((x) => x.n > 0 && x.sabor === fi.sabor))
+        || (o.tipo === 'carapinas' && this.fichaEn({ f: p.f - 1, c: p.c })?.tipo === 'carapina')) listas[0].push(p);
+      else listas[ce.candado ? 2 : 3].push(p);
+    });
+    const l = listas.find((x) => x.length);
+    return l ? this.azar.elegir(l) : null;
   }
 
   private todasLasCeldas(): Pos[] { return this.tablero.flatMap((fila, f) => fila.map((_, c) => ({ f, c }))); }
@@ -618,7 +723,7 @@ export class Partida {
     for (let f = 0; f < this.filas; f++) {
       const ce = this.tablero[f][c];
       if (!ce.existe) continue;
-      if (ce.escarcha > 0 || (ce.ficha && ce.candado)) { r.push({ celdas: actual, abierto }); actual = []; abierto = false; } else actual.push({ f, c });
+      if (ce.escarcha > 0 || ce.pala !== undefined || (ce.ficha && ce.candado)) { r.push({ celdas: actual, abierto }); actual = []; abierto = false; } else actual.push({ f, c });
     }
     r.push({ celdas: actual, abierto });
     return r.filter((t) => t.celdas.length);

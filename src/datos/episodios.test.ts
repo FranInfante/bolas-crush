@@ -8,7 +8,7 @@ import { SABORES } from './sabores.ts';
 import { Partida } from '../motor/index.ts';
 import type { Nivel } from '../motor/index.ts';
 
-const PERMITIDOS = new Set('.omMeEkKcs');
+const PERMITIDOS = new Set('.omMeEkKcsp');
 const NUMEROS: Record<string, number> = { doce: 12, trece: 13, catorce: 14, quince: 15, dieciséis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20 };
 
 /** Mismas reglas que niveles.test.ts, aplicadas a un nivel cualquiera. */
@@ -26,7 +26,7 @@ function validar(n: Nivel): void {
   if (o.tipo === 'manchas') assert.ok(/[mMK]/.test(todo));
   if (o.tipo === 'carapinas') {
     assert.ok(todo.includes('s'));
-    assert.ok(o.n === [...todo].filter((x) => x === 'c').length + (n.carapinasPorSalir ?? 0), `carapinas ${n.id}`);
+    assert.ok(o.n === [...todo].filter((x) => x === 'c').length + [...todo].filter((x) => x === 'p').length + (n.carapinasPorSalir ?? 0), `carapinas ${n.id}`);
   }
   if (o.tipo === 'pedido') {
     assert.ok(o.pedido.length >= 2);
@@ -147,4 +147,23 @@ test('niveles 16-500: se pueden jugar (sin tríos hechos, con jugada, carapinas 
     assert.notEqual(p.pista(), null, `nivel ${id} sin jugadas`);
     if (n.objetivo.tipo === 'pedido') for (const x of n.objetivo.pedido) assert.ok(x.sabor < n.sabores);
   }
+});
+
+test('niveles con palas: casilla normal debajo, nada encima, salida y alcance', () => {
+  let conPalas = 0;
+  for (let id = 16; id <= 400; id++) {
+    const n = nivel(id), f = n.forma;
+    if (!f.join('').includes('p')) continue;
+    assert.equal(n.objetivo.tipo, 'carapinas', `pala en nivel que no es de carapinas (${id})`);
+    assert.ok(id >= 40, `pala antes de tiempo (${id})`);
+    conPalas++;
+    f.forEach((fila, i) => [...fila].forEach((ch, c) => {
+      if (ch !== 'p') return;
+      assert.equal(f[i + 1]?.[c], 'o', `pala sin casilla normal debajo (${id})`);
+      assert.ok(i === 0 || f[i - 1][c] === '.', `pala con algo encima (${id})`);
+    }));
+    assert.ok(f.join('').includes('s'), `pala sin salida (${id})`);
+    new Partida(n); // la forma se carga sin fallar
+  }
+  assert.ok(conPalas >= 10, `pocos niveles con palas: ${conPalas}`);
 });
