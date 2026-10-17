@@ -1,5 +1,6 @@
 // Piezas de interfaz reutilizables: textos con borde, botones, avatares y progreso guardado.
-import { Container, Graphics, Text } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
+import type { Texture } from 'pixi.js';
 import type { TextStyleOptions } from 'pixi.js';
 import { NIVELES_POR_EPISODIO, nivel } from '../datos/episodios.ts';
 import type { Personaje } from '../datos/equipo.ts';
@@ -34,11 +35,31 @@ export function boton(texto: string, w: number, h: number, color: number, alPuls
   return c;
 }
 
-/** Avatar del equipo: círculo de su color con la inicial (no hay retratos). */
+const RETRATOS = ['rocio']; // personajes con cara (public/arte/<id>.svg)
+const retratos = new Map<string, Texture>();
+/** Precarga los retratos para que avatar() sea síncrona. */
+export async function cargarRetratos(): Promise<void> {
+  await Promise.all(RETRATOS.map(async (id) => {
+    try { retratos.set(id, await Assets.load<Texture>({ src: `${import.meta.env.BASE_URL}arte/${id}.svg`, data: { resolution: 2 } })); } catch { /* sin retrato: inicial */ }
+  }));
+}
+
+/** Avatar del equipo: su retrato en círculo o, si no hay, círculo de su color con la inicial. */
 export function avatar(p: Personaje, r: number): Container {
   const c = new Container();
+  const color = parseInt(p.color.slice(1), 16);
+  const tex = retratos.get(p.id);
+  if (tex) {
+    const s = new Sprite(tex);
+    s.anchor.set(0.5);
+    s.width = s.height = r * 2;
+    const m = new Graphics().circle(0, 0, r).fill(0xffffff);
+    s.mask = m;
+    c.addChild(new Graphics().circle(0, 3, r).fill({ color: 0x000000, alpha: 0.3 }), s, m, new Graphics().circle(0, 0, r).stroke({ width: 4, color: 0xffffff }));
+    return c;
+  }
   c.addChild(
-    new Graphics().circle(0, 3, r).fill({ color: 0x000000, alpha: 0.3 }).circle(0, 0, r).fill(parseInt(p.color.slice(1), 16)).stroke({ width: 4, color: 0xffffff }),
+    new Graphics().circle(0, 3, r).fill({ color: 0x000000, alpha: 0.3 }).circle(0, 0, r).fill(color).stroke({ width: 4, color: 0xffffff }),
     new Graphics().ellipse(-r * 0.3, -r * 0.45, r * 0.3, r * 0.15).fill({ color: 0xffffff, alpha: 0.35 }),
     txtBorde(p.nombre[0], r * 1.1, 0xffffff, 0x1a1a2e),
   );

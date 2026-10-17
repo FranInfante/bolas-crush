@@ -9,6 +9,8 @@ import { SABORES } from './sabores.ts';
 import type { Episodio } from './episodios.ts';
 
 export const NIVELES_POR_EPISODIO = 15;
+/** Primer nivel generado que puede traer palas de helado. */
+export const PALAS_DESDE = 40;
 
 /** Posición dentro del episodio (1-15). Las 5, 10 y 15 son las difíciles (dientes de sierra de Candy Crush). */
 export const posicionDe = (id: number): number => ((id - 1) % NIVELES_POR_EPISODIO) + 1;
@@ -59,6 +61,13 @@ function columnasSimetricas(g: Rejilla, azar: Azar, pares: number, valida: (c: n
   return [...new Set(elegidas.flatMap((c) => [c, ancho - 1 - c]))];
 }
 
+/** Fracción de celdas con las 4 vecinas dentro del tablero (los marcos y los tableros con huecos tienen poca). */
+const compacidad = (g: Rejilla): number => {
+  let todas = 0, dentro = 0;
+  g.forEach((fila, f) => fila.forEach((_, c) => { if (!existe(g, f, c)) return; todas++; if ([[-1, 0], [1, 0], [0, -1], [0, 1]].every(([a, b]) => existe(g, f + a, c + b))) dentro++; }));
+  return dentro / todas;
+};
+
 // ------------------------------------------------------------------ características (también las usa el calibrador)
 export interface Caracteristicas {
   celdas: number;
@@ -68,6 +77,8 @@ export interface Caracteristicas {
   escarcha: number;
   candados: number;
   carapinas: number;
+  /** Palas de helado: cada una aporta una carapina más (y la fila de arriba no cae). */
+  palas: number;
   porSalir: number;
   /** Carapinas iniciales: suma de las celdas que tienen debajo en su columna. */
   prof: number;
@@ -86,6 +97,7 @@ export function caracteristicas(n: Pick<Nivel, 'forma' | 'sabores' | 'objetivo' 
     escarcha: cuenta(/e/g) + 2 * cuenta(/E/g),
     candados: cuenta(/[kK]/g),
     carapinas: cuenta(/c/g),
+    palas: cuenta(/p/g),
     porSalir: n.carapinasPorSalir ?? 0,
     prof: n.forma.reduce((s, fila, f) => s + [...fila].reduce((t, ch, c) => t + (ch === 'c' ? n.forma.filter((x, g) => g > f && x[c] !== '.').length : 0), 0), 0),
     pedido: n.objetivo.tipo === 'pedido' ? n.objetivo.pedido.reduce((s, x) => s + x.n, 0) : 0,
@@ -149,8 +161,12 @@ export function ajustar(c: Caracteristicas, tipo: Objetivo['tipo'], meta: number
   let m80: number;
   if (tipo === 'manchas') m80 = F.manchas.a + F.manchas.b * c.capas + F.manchas.c * c.capas * seis + extra;
   else if (tipo === 'pedido') m80 = F.pedido.a + F.pedido.b * c.pedido + F.pedido.c * seis + F.pedido.d * c.celdas + extra;
-  else m80 = F.carapinas.a + F.carapinas.b * (c.carapinas + c.porSalir) + F.carapinas.c * seis + extra;
+  else m80 = F.carapinas.a + F.carapinas.b * (c.carapinas + c.porSalir + 1.8 * c.palas) + F.carapinas.c * seis + extra;
   movimientos = Math.max(6, Math.round(m80 * Math.max(0.3, interpola(F.factor[tipo], meta))));
+  // Tope de dureza en pedidos (nivel 50: 66 bolas en 46 celdas y 11 movimientos → bot 13 %): el bot junta ~0,1·celdas bolas por movimiento, y la escarcha le cuesta ~un movimiento por capa.
+  // Manchas: nunca menos de 10 movimientos (nivel 87: 15 capas en 8 → bot 20 %).
+  if (tipo === 'manchas') movimientos = Math.max(movimientos, 10);
+  if (tipo === 'pedido') movimientos = Math.max(movimientos, Math.ceil(c.pedido / (0.1 * c.celdas) + c.escarcha));
   const esperado = (F.ppm[c.sabores] ?? F.ppm[5]) * movimientos;
   const est: [number, number, number] = [redondea(esperado * 0.4, 100), redondea(esperado * 0.95, 100), redondea(esperado * 1.4, 100)];
   return { movimientos, estrellas: est };
@@ -220,26 +236,37 @@ export function generarNivel(id: number, ep: Episodio): Nivel {
   // --- forma
   // Carapinas: tablero alto y con la fila de abajo ancha (≥ 5 celdas), si no, las salidas son casi imposibles de limpiar.
   const variantes = PLANTILLAS.flatMap((p) => [p, [...p].reverse()]);
-  const posibles = tipo === 'carapinas' ? variantes.filter((p) => p.length >= 6 && [...p[p.length - 1]].filter((x) => x === 'o').length >= 5) : variantes;
+  // Puntos: sin marcos ni tableros con huecos (compacidad < 0,3): el bot saca la mitad de puntos de lo que dice la fórmula (nivel 74: 3 %).
+  const posibles = tipo === 'carapinas' ? variantes.filter((p) => p.length >= 6 && [...p[p.length - 1]].filter((x) => x === 'o').length >= 5)
+    : tipo === 'puntos' ? variantes.filter((p) => compacidad(p.map((f) => [...f])) >= 0.3) : variantes;
   const plantilla = azar.elegir(posibles);
   const g: Rejilla = plantilla.map((f) => [...f]);
   const ancho = g[0].length, alto = g.length;
 
-  let carapinasPorSalir = 0;
+  let carapinasPorSalir = 0, palas = 0;
   let objetivo: Objetivo = { tipo: 'puntos' };
 
   if (tipo === 'carapinas') {
-    const nIni = 2 + (azar.siguiente() < 0.3 + 0.5 * h ? 1 : 0);
-    carapinasPorSalir = h > 0.35 ? azar.entero(1 + Math.round(2 * h)) : 0;
+    // Palas de helado (desde el nivel ~40, la mitad de los niveles): las carapinas vienen de ellas, así que hay menos iniciales.
+    const conPalas = id >= PALAS_DESDE && ancho >= 8 && azar.siguiente() < 0.5;
+    const nIni = conPalas ? 1 + (azar.siguiente() < 0.4 ? 1 : 0) : 2 + (azar.siguiente() < 0.3 + 0.5 * h ? 1 : 0);
+    carapinasPorSalir = !conPalas && h > 0.35 ? azar.entero(1 + Math.round(2 * h)) : 0;
     const cols = columnasSimetricas(g, azar, Math.ceil(nIni / 2), (c) => celdasDe(g, c) >= 5 && c >= 2).slice(0, nIni);
     if (!cols.length) cols.push(Math.floor(ancho / 2));
     for (const c of cols) {
       const filas = g.map((_, f) => f).filter((f) => existe(g, f, c));
       g[filas[1 + azar.entero(2)]][c] = 'c';
     }
-    const colsS = carapinasPorSalir ? Array.from({ length: ancho }, (_, c) => c) : cols;
+    if (conPalas) {
+      // Pala en la primera casilla de la columna (nada encima), con una casilla normal debajo y un vecino al lado donde dar el match.
+      const aptas = (c: number) => { const f = g.findIndex((_, i) => existe(g, i, c)); return !cols.includes(c) && celdasDe(g, c) >= 5 && g[f][c] === 'o' && g[f + 1]?.[c] === 'o' && (existe(g, f, c - 1) || existe(g, f, c + 1)); };
+      const pc = columnasSimetricas(g, azar, 1, aptas).filter(aptas).slice(0, 1 + azar.entero(2));
+      for (const c of pc) g[g.findIndex((_, i) => existe(g, i, c))][c] = 'p';
+      palas = pc.length;
+    }
+    const colsS = carapinasPorSalir || palas ? Array.from({ length: ancho }, (_, c) => c) : cols;
     for (const c of colsS) { const f = fondo(g, c); if (f >= 0 && g[f][c] === 'o') g[f][c] = 's'; }
-    objetivo = { tipo: 'carapinas', n: cols.length + carapinasPorSalir };
+    objetivo = { tipo: 'carapinas', n: cols.length + carapinasPorSalir + palas };
   } else {
     // Escarcha: abajo del todo de la columna.
     if (azar.siguiente() < 0.2 + 0.4 * h) {
@@ -319,3 +346,9 @@ export function generarNivel(id: number, ep: Episodio): Nivel {
 // 67 | carapinas |  18 | 68 % | 70 %
 // 75 | carapinas |  14 | 38 % | 37 %
 // Fuera de ±12: 50 (pedido 52 % → 7 %), 57 (manchas 63 % → 33 %), 60 (carapinas 39 % → 8 %), 74 (puntos 62 % → 2 %, 6 sabores y pocas celdas).
+//
+// Segunda pasada (17-10, con sacabolas y palas; ids 40-100, n = 60 partidas): peor nivel 42 % (antes 50: 7-13 %, 74: 2 %, 57: 33 %, 60: 8 %).
+// Antes → después (peores): 50 pedido 13 % → 50 % (tope: bolas ≤ 0,1·celdas por movimiento + 1 por capa de escarcha) · 74 puntos 3 % → fuera
+// (sin plantillas con compacidad < 0,3: marco y «dos huecos») · 87 manchas 20 % → 50 % (mínimo 10 movimientos) · 99 pedido 20 % → 42 % ·
+// 45 carapinas con 2 palas en tablero de 7 de ancho 17-28 % → sin palas (solo en tableros de 8+ de ancho). Ningún nivel de 40-100 bajo 40 %.
+// Palas: desde el nivel 40, la mitad de los de carapinas (1 pala, a veces 2, en la fila de arriba) y menos 'c' iniciales; objetivo.n = c + palas + por salir.

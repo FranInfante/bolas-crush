@@ -58,6 +58,8 @@ export class VistaTablero extends Container {
   private manchas = new Map<string, Sprite>();
   private escarchas = new Map<string, Sprite>();
   private candados = new Map<string, Sprite>();
+  private palas = new Map<string, Sprite>();
+  private saborVuelo = 0; // sabor del sacabolas que acaba de detonar (el vuelo lo dibuja con él)
   private sel: Pos | null = null;
   private down: { p: Pos; x: number; y: number } | null = null;
   private pista: Vis[] = [];
@@ -151,6 +153,11 @@ export class VistaTablero extends Container {
       }
       this.ajustar(this.manchas, this.capaManchas, kk, ce.mancha, (n) => this.tx.mancha(n as 1 | 2), q, () => 1, 1);
       this.ajustar(this.escarchas, this.capaEscarcha, kk, ce.escarcha, (n) => this.tx.escarcha(n as 1 | 2), q, () => 1, 1);
+      if (ce.pala !== undefined) {
+        let sp = this.palas.get(kk);
+        if (!sp) { sp = this.sprite(this.tx.pala(ce.pala), q.x, q.y, 1); this.capaManchas.addChild(sp); this.palas.set(kk, sp); }
+        sp.texture = this.tx.pala(ce.pala); sp.position.set(q.x, q.y); sp.scale.set(1); sp.rotation = 0;
+      }
       this.ajustar(this.candados, this.capaEscarcha, kk, ce.candado ? 1 : 0, () => this.tx.candado(), { x: q.x + 18, y: q.y - 16 }, () => 1, 0.7);
     });
     for (const v of [...this.vis.values()]) if (!ids.has(v.id)) this.quitar(v);
@@ -254,7 +261,7 @@ export class VistaTablero extends Container {
           }
           case 'eliminar': lanzar(nDet ? ultimo + 120 : sig, p); break;
           case 'crearEspecial': lanzar(sig, p); crear = Math.max(crear, sig + 230); break;
-          case 'mancha': case 'escarcha': case 'candado': case 'carapinaFuera': lanzar(nDet ? ultimo + 120 : sig, p); break;
+          case 'mancha': case 'escarcha': case 'candado': case 'carapinaFuera': case 'pala': lanzar(nDet ? ultimo + 120 : sig, p); break;
           case 'bolazo': void this.paso(p); sig = 300; ESCALON = 45; break; // el letrero corre aparte
           case 'jaleo': void this.paso(p); break;
           default: await soltar(); await this.paso(p); // intercambio, invalido, caer, barajar, fin
@@ -275,6 +282,8 @@ export class VistaTablero extends Container {
       case 'escarcha': this.quitarCapa(this.escarchas, p.pos, p.quedan, 0xbfe9ff, () => 1, (n) => this.tx.escarcha(n as 1 | 2)); return;
       case 'candado': this.quitarCapa(this.candados, p.pos, 0, 0xffc83d, () => 1); this.au.crear(); return;
       case 'carapinaFuera': return this.carapinaFuera(p.id);
+      case 'pala': return this.pala(p);
+      case 'vuelo': return this.vuelo(p);
       case 'caer': return this.caer(p);
       case 'barajar': this.gan.barajado(); return this.barajar(p.movimientos);
       case 'jaleo': this.gan.jaleo(p.nivel); if (p.nivel >= 3) this.gan.agitar(p.nivel * 2); return;
@@ -399,6 +408,18 @@ export class VistaTablero extends Container {
         haz.circle(q.x, q.y, r * ease.outCubic(t)).stroke({ width: 14 * (1 - t) + 2, color: 0xffffff, alpha: 1 - t });
         haz.circle(q.x, q.y, r * 0.6 * ease.outCubic(t)).fill({ color: 0xfff3c0, alpha: 0.5 * (1 - t) });
       });
+    } else if (esp === 'sacabolas') {
+      this.au.boom();
+      const v = this.enPos(p.pos);
+      if (v) this.saborVuelo = v.sabor;
+      void this.tw.to(dur, (t) => {
+        haz.clear();
+        for (const o of p.celdas.map(xy)) {
+          const e = ease.outCubic(t), x = q.x + (o.x - q.x) * e, y = q.y + (o.y - q.y) * e;
+          haz.moveTo(q.x, q.y).lineTo(x, y).stroke({ width: 8 * (1 - t) + 1, color: 0xffe9a8, alpha: 1 - t, cap: 'round' });
+          haz.circle(x, y, 12 * (1 - t) + 2).fill({ color: 0xffffff, alpha: 0.9 * (1 - t) });
+        }
+      });
     } else {
       this.au.rayos();
       dur = 380;
@@ -415,6 +436,80 @@ export class VistaTablero extends Container {
     this.chispas(q.x, q.y, 0xffffff, 12);
     await this.tw.espera(dur * 0.8);
     void this.tw.espera(dur * 0.3).then(() => haz.destroy());
+  }
+
+  /** El sacabolas sale volando en arco hasta `hasta` (con la raya o tarrina del combo) y hace impacto. */
+  private async vuelo(p: Extract<Paso, { tipo: 'vuelo' }>): Promise<void> {
+    const a = xy(p.desde), b = xy(p.hasta);
+    const cont = new Container();
+    const s = this.sprite(this.tx.bolaTex(this.saborVuelo, 'sacabolas'), 0, 0, ESC * 1.1);
+    cont.addChild(s);
+    if (p.carga !== 'ninguno') { // la carga se ve: icono encima y halo
+      const ic = new Graphics();
+      ic.circle(0, 0, 20).fill({ color: 0xfff3c0, alpha: 0.35 });
+      if (p.carga === 'rayaH') ic.roundRect(-16, -4, 32, 8, 4).fill(0xffffff).stroke({ width: 2, color: 0x001b41 });
+      else if (p.carga === 'rayaV') ic.roundRect(-4, -16, 8, 32, 4).fill(0xffffff).stroke({ width: 2, color: 0x001b41 });
+      else ic.circle(0, 0, 11).fill(0xff8a1f).stroke({ width: 2.5, color: 0x001b41 });
+      ic.y = -22;
+      cont.addChild(ic);
+    }
+    cont.position.set(a.x, a.y);
+    this.capaFx.addChild(cont);
+    this.au.swoosh();
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    const alto = Math.min(110, 40 + d * 0.3); // el arco sube
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2 - alto;
+    const giro = b.x >= a.x ? 1 : -1;
+    let ult = 0;
+    await this.tw.to(450, (t) => {
+      const u = 1 - t;
+      const x = u * u * a.x + 2 * u * t * cx + t * t * b.x, y = u * u * a.y + 2 * u * t * cy + t * t * b.y;
+      cont.position.set(x, y);
+      s.rotation = t * Math.PI * 3 * giro;
+      cont.scale.set(1 + Math.sin(t * Math.PI) * 0.35);
+      if (!REDUCIDO && t - ult > 0.07) { // estela
+        ult = t;
+        const e = this.sprite(this.tx.blanca, x, y, 0.5);
+        e.tint = colorSabor(this.saborVuelo);
+        this.capaFx.addChildAt(e, 0);
+        void this.tw.to(300, (v) => { e.alpha = 0.7 * (1 - v); e.scale.set(0.5 * (1 - v * 0.7)); }).then(() => e.destroy());
+      }
+    }, ease.inOutQuad);
+    // Impacto.
+    this.au.boom();
+    this.gan.agitar(3);
+    this.destello(b.x, b.y);
+    this.chispas(b.x, b.y, colorSabor(this.saborVuelo), 16);
+    await this.tw.to(120, (t) => { cont.scale.set(1.35 * (1 - t)); cont.alpha = 1 - t; });
+    cont.destroy({ children: true });
+  }
+
+  /** Pala de helado: sube la carga (rebote + relleno) y, al llenarse, suelta la carapina hacia `hasta`. */
+  private async pala(p: Extract<Paso, { tipo: 'pala' }>): Promise<void> {
+    const sp = this.palas.get(k(p.pos));
+    if (!sp) return;
+    const q = xy(p.pos);
+    this.au.crear();
+    const suelta = p.suelta;
+    sp.texture = this.tx.pala(suelta ? p.max : p.carga);
+    this.chispas(q.x, q.y - 6, 0xffb3d1, 6);
+    await this.tw.to(260, (t) => { const e = ease.outBack(t); sp.scale.set(1 + 0.18 * (1 - e)); sp.rotation = Math.sin(t * Math.PI * 2) * 0.12 * (1 - t); });
+    sp.rotation = 0; sp.scale.set(1);
+    if (!suelta) return;
+    const h = xy(suelta.hasta);
+    const viejo = suelta.quitaId ? this.vis.get(suelta.quitaId) : undefined;
+    if (viejo) { this.chispas(viejo.s.x, viejo.s.y, colorSabor(viejo.sabor), 8); void this.tw.to(160, (t) => viejo.s.scale.set(ESC * (1 - t))).then(() => this.quitar(viejo)); }
+    const v = this.crear(suelta.ficha, suelta.hasta);
+    v.s.position.set(q.x, q.y - 14); v.s.scale.set(0.1);
+    this.au.campanita(1);
+    sp.texture = this.tx.pala(0);
+    await this.tw.to(380, (t) => {
+      v.s.position.set(q.x + (h.x - q.x) * t, q.y - 14 + (h.y - q.y + 14) * t - Math.sin(t * Math.PI) * 26);
+      v.s.scale.set(ESC * Math.min(1, 0.1 + t * 1.2));
+      v.s.rotation = (1 - t) * 0.8;
+    }, ease.outQuad);
+    v.s.rotation = 0; v.s.scale.set(ESC);
+    this.chispas(h.x, h.y, 0xffd92e, 8);
   }
 
   /** Cambia la capa de una casilla: si quedan 0 se rompe con trocitos, si no se actualiza. */

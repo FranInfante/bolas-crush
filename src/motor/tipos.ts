@@ -4,8 +4,11 @@
 /** Índice de sabor 0..5 (ver datos/sabores.ts). */
 export type Sabor = number;
 
-/** Lo que lleva una bola además de su sabor. Como Candy Crush: 4 en línea → raya, L/T → tarrina, 5 → bola Bolas. */
-export type Especial = 'ninguno' | 'rayaH' | 'rayaV' | 'tarrina' | 'bolaBolas';
+/**
+ * Lo que lleva una bola además de su sabor. Como Candy Crush: 4 en línea → raya, L/T → tarrina, 5 → bola Bolas,
+ * cuadrado 2x2 → sacabolas (quita la cruz de alrededor y vuela a una casilla del objetivo).
+ */
+export type Especial = 'ninguno' | 'rayaH' | 'rayaV' | 'tarrina' | 'bolaBolas' | 'sacabolas';
 
 export interface Ficha {
   /** Único durante toda la partida: el render lo usa para seguir cada sprite. */
@@ -28,6 +31,9 @@ export interface Celda {
   candado: boolean;
   /** En esta celda las carapinas «salen» del tablero (fila de abajo de cada columna con carapinas). */
   salida: boolean;
+  /** Pala de helado (dispensador de carapinas): bloque fijo sin ficha; cada match al lado o explosión la llena un poco
+   *  (0..PALA_MAX) y al llenarse suelta una carapina en una casilla vecina. undefined = no hay pala. */
+  pala?: number;
 }
 
 export type Pos = { f: number; c: number };
@@ -43,6 +49,7 @@ export type Objetivo =
  * `forma`: una cadena por fila, mismo largo, un carácter por celda:
  *   '.' hueco · 'o' celda normal · 'm' mancha 1 · 'M' mancha 2 · 'e' escarcha 1 · 'E' escarcha 2
  *   'k' candado · 'K' candado + mancha 1 · 'c' carapina inicial · 's' celda normal que es salida de carapinas
+ *   'p' pala de helado (dispensador de carapinas)
  */
 export interface Nivel {
   id: number;
@@ -75,6 +82,8 @@ export type Paso =
   | { tipo: 'escarcha'; pos: Pos; quedan: number }
   | { tipo: 'candado'; pos: Pos }                                          // se abre
   | { tipo: 'carapinaFuera'; pos: Pos; id: number }
+  | { tipo: 'vuelo'; desde: Pos; hasta: Pos; carga: Especial }             // el sacabolas vuela a `hasta` (con la raya o tarrina del combo)
+  | { tipo: 'pala'; pos: Pos; carga: number; max: number; suelta?: { ficha: Ficha; hasta: Pos; quitaId?: number } } // se llena; al llenarse suelta una carapina
   | { tipo: 'caer'; movimientos: Movimiento[]; nuevas: { ficha: Ficha; hasta: Pos }[] }
   | { tipo: 'barajar'; movimientos: Movimiento[] }
   | { tipo: 'jaleo'; nivel: 1 | 2 | 3 | 4 }                                // «¡Ole!», «¡Qué arte!»… según la cascada
