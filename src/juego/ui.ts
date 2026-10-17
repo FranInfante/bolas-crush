@@ -35,27 +35,65 @@ export function boton(texto: string, w: number, h: number, color: number, alPuls
   return c;
 }
 
-const RETRATOS = ['rocio']; // personajes con cara (public/arte/<id>.svg)
-const retratos = new Map<string, Texture>();
+// Personajes con cara 3D (arte-fuente/ → public/arte/<id>.webp, más <id>-ojos y <id>-boca: parches del mismo tamaño
+// con los ojos cerrados y la boca abierta). Cara = centro y radio del círculo del avatar, en píxeles de la textura.
+const RETRATOS: Record<string, { cara: [number, number, number] }> = { rocio: { cara: [167, 200, 128] } };
+const retratos = new Map<string, { base: Texture; ojos: Texture; boca: Texture }>();
 /** Precarga los retratos para que avatar() sea síncrona. */
 export async function cargarRetratos(): Promise<void> {
-  await Promise.all(RETRATOS.map(async (id) => {
-    try { retratos.set(id, await Assets.load<Texture>({ src: `${import.meta.env.BASE_URL}arte/${id}.svg`, data: { resolution: 2 } })); } catch { /* sin retrato: inicial */ }
+  const url = (n: string) => `${import.meta.env.BASE_URL}arte/${n}.webp`;
+  await Promise.all(Object.keys(RETRATOS).map(async (id) => {
+    try {
+      const [base, ojos, boca] = await Promise.all([id, `${id}-ojos`, `${id}-boca`].map((n) => Assets.load<Texture>(url(n))));
+      retratos.set(id, { base, ojos, boca });
+    } catch { /* sin retrato: inicial */ }
   }));
 }
 
-/** Avatar del equipo: su retrato en círculo o, si no hay, círculo de su color con la inicial. */
-export function avatar(p: Personaje, r: number): Container {
+/** Retrato que parece vivo: respira, se mece, parpadea y mueve la boca los primeros `habla` ms. Origen = centro de la cara. */
+function retratoVivo(id: string, escala: number, habla: number): Container {
+  const t = retratos.get(id)!, [cx, cy] = RETRATOS[id].cara;
+  const cuerpo = new Container();
+  const capas = [t.base, t.ojos, t.boca].map((tx) => { const s = new Sprite(tx); s.position.set(-cx, -cy); cuerpo.addChild(s); return s; });
+  const [, ojos, boca] = capas;
+  cuerpo.scale.set(escala);
+  const raiz = new Container(); raiz.addChild(cuerpo);
+  const t0 = performance.now(), fase = Math.random() * 6;
+  let parpadeo = t0 + 800 + Math.random() * 2000;
+  const vivo = () => {
+    const ms = performance.now(), s = (ms - t0) / 1000 + fase;
+    cuerpo.scale.set(escala * (1 + Math.sin(s * 1.6) * 0.006), escala * (1 + Math.sin(s * 1.6) * 0.014)); // respira
+    cuerpo.rotation = Math.sin(s * 0.9) * 0.025;                                                         // se mece
+    cuerpo.y = Math.sin(s * 1.6) * -1.5 * escala * 2;
+    if (ms > parpadeo + 130) parpadeo = ms + 2200 + Math.random() * 2800;
+    ojos.visible = ms >= parpadeo;
+    boca.visible = ms - t0 < habla && Math.sin((ms - t0) / 70) > 0.1; // abre y cierra mientras dice la frase
+  };
+  vivo();
+  raiz.onRender = vivo; // se anima solo mientras se dibuja
+  return raiz;
+}
+
+/** Busto vivo sin círculo (radio de cara `r`, cortado `abajo` px por debajo del centro de la cara), o el avatar si no tiene retrato. */
+export function busto(p: Personaje, r: number, abajo: number, habla = 1800): Container {
+  if (!retratos.has(p.id)) return avatar(p, r, habla);
+  const c = retratoVivo(p.id, r / RETRATOS[p.id].cara[2], habla);
+  const m = new Graphics().rect(-r * 3, -r * 4, r * 6, r * 4 + abajo).fill(0xffffff);
+  c.mask = m;
+  const raiz = new Container(); raiz.addChild(c, m);
+  return raiz;
+}
+
+/** Avatar del equipo: su retrato vivo en círculo o, si no hay, círculo de su color con la inicial. */
+export function avatar(p: Personaje, r: number, habla = 1800): Container {
   const c = new Container();
   const color = parseInt(p.color.slice(1), 16);
-  const tex = retratos.get(p.id);
-  if (tex) {
-    const s = new Sprite(tex);
-    s.anchor.set(0.5);
-    s.width = s.height = r * 2;
+  if (retratos.has(p.id)) {
+    const fondo = new Graphics().circle(0, 3, r).fill({ color: 0x000000, alpha: 0.3 }).circle(0, 0, r).fill(color);
+    const cara = retratoVivo(p.id, r / RETRATOS[p.id].cara[2], habla);
     const m = new Graphics().circle(0, 0, r).fill(0xffffff);
-    s.mask = m;
-    c.addChild(new Graphics().circle(0, 3, r).fill({ color: 0x000000, alpha: 0.3 }), s, m, new Graphics().circle(0, 0, r).stroke({ width: 4, color: 0xffffff }));
+    cara.mask = m;
+    c.addChild(fondo, cara, m, new Graphics().circle(0, 0, r).stroke({ width: 4, color: 0xffffff }));
     return c;
   }
   c.addChild(

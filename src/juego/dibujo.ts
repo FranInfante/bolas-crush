@@ -2,6 +2,7 @@
 import { Container, Graphics, Rectangle, Sprite } from 'pixi.js';
 import type { Renderer, Texture } from 'pixi.js';
 import type { Ficha, Especial } from '../motor/tipos.ts';
+import { iconoTex } from './iconos.ts';
 import { SABORES } from '../datos/sabores.ts';
 
 export const TEX = 96;      // lado de las texturas de bola
@@ -159,6 +160,14 @@ export class Texturas {
 
   /** Bola con dos alas de barquillo (waffle) y una cucharita de helado delante: el «avioncito» de Bolas. */
   private dibujarSacabolas(c: Container, sabor: number): void {
+    const ut = iconoTex('sacabolas');
+    if (ut) { // bola del sabor con el sacabolas 3D delante
+      sombra(c, TEX / 2, 46, R);
+      const g = new Graphics(); bola(g, TEX / 2, 46, R, sabor); c.addChild(g);
+      const s = new Sprite(ut); s.anchor.set(0.5); s.scale.set(84 / Math.max(ut.width, ut.height)); s.position.set(TEX / 2 + 6, 52); // grande: se tiene que ver de un vistazo
+      c.addChild(s);
+      return;
+    }
     const cx = TEX / 2, cy = 50, r = 25;
     sombra(c, cx, cy, r + 6);
     const g = new Graphics();

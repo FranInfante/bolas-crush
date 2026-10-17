@@ -7,7 +7,7 @@ import { TEXTOS } from '../datos/frases.ts';
 import type { Juego, Escena } from './app.ts';
 import { estrella } from './dibujo.ts';
 import { ease } from './tween.ts';
-import { avatar, boton, cargarProgreso, cofrePara, abrirCofre, DW, fmt, guardarResultado, moneda, panel, PRECIO, txt, txtBorde, usarPot } from './ui.ts';
+import { avatar, boton, busto, cargarProgreso, cofrePara, abrirCofre, DW, fmt, guardarResultado, moneda, panel, PRECIO, txt, txtBorde, usarPot } from './ui.ts';
 import type { PotId } from './ui.ts';
 import { mostrarCofre } from './enganche.ts';
 import { EXTRA } from './textos-extra.ts';
@@ -72,7 +72,7 @@ export class EscenaFicha implements Escena {
 
     // Presentador
     const pers = PERSONAJE[n.presenta?.quien ?? 'rocio'];
-    const av = avatar(pers, 38); av.position.set(-w / 2 + 62, 82);
+    const av = busto(pers, 42, 84); av.position.set(-w / 2 + 66, 66); // de pie sobre el borde de abajo del bocadillo
     const burbuja = new Graphics().roundRect(-w / 2 + 112, 38, w - 140, 112, 18).fill(0xffffff).poly([-w / 2 + 112, 70, -w / 2 + 98, 84, -w / 2 + 112, 98]).fill(0xffffff);
     const nombre = txt(pers.nombre, 14, 0x2f6fde, { fontWeight: '700' }); nombre.anchor.set(0, 0.5); nombre.position.set(-w / 2 + 126, 54);
     const frase = txt(n.presenta?.texto ?? '¡A por ello, mi arma!', 16, 0x001b41, { wordWrap: true, wordWrapWidth: w - 175, align: 'left' });

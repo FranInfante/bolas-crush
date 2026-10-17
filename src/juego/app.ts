@@ -9,6 +9,7 @@ import { EscenaPartida } from './partida.ts';
 import { EscenaFicha } from './pantallas.ts';
 import { cargarHitos, EscenaMapa } from './mapa.ts';
 import { ventanaRegalo } from './enganche.ts';
+import { cargarIconos } from './iconos.ts';
 import { cargarRetratos, DW, regaloPendiente } from './ui.ts';
 
 export interface Escena { container: Container; layout(dh: number): void; destroy(): void }
@@ -48,6 +49,7 @@ export class Juego {
 
     const logo = await this.cargar(`${import.meta.env.BASE_URL}heladeria-bolas-sevilla-logo.png`);
     await cargarRetratos();
+    await cargarIconos();
     this.hitos = await cargarHitos((u) => this.cargar(u));
     this.tx = new Texturas(this.app.renderer, logo);
 
