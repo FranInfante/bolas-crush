@@ -9,7 +9,7 @@ import { EscenaPartida } from './partida.ts';
 import { EscenaFicha } from './pantallas.ts';
 import { cargarHitos, EscenaMapa } from './mapa.ts';
 import { ventanaRegalo } from './enganche.ts';
-import { cargarIconos } from './iconos.ts';
+import { cargarIconos, iconoTex } from './iconos.ts';
 import { cargarRetratos, DW, regaloPendiente } from './ui.ts';
 
 export interface Escena { container: Container; layout(dh: number): void; destroy(): void }
@@ -114,10 +114,12 @@ export class Juego {
     const dibujar = () => {
       b.removeChildren().forEach((h) => h.destroy());
       const g = new Graphics().circle(0, 0, 20).fill({ color: 0x001b41, alpha: 0.7 }).stroke({ width: 2.5, color: 0xffffff, alpha: 0.7 });
+      b.addChild(g);
+      const tex = iconoTex(this.au.silenciado ? 'silencio' : 'sonido');
+      if (tex) { const s = new Sprite(tex); s.anchor.set(0.5); s.scale.set(28 / tex.width); b.addChild(s); return; }
       g.poly([-10, -4, -5, -4, 1, -10, 1, 10, -5, 4, -10, 4]).fill(0xffffff);
       if (this.au.silenciado) g.moveTo(5, -6).lineTo(13, 6).moveTo(13, -6).lineTo(5, 6).stroke({ width: 3, color: 0xff5a6e, cap: 'round' });
       else g.arc(2, 0, 7, -0.9, 0.9).stroke({ width: 2.5, color: 0xffffff, cap: 'round' }).arc(2, 0, 12, -0.9, 0.9).stroke({ width: 2.5, color: 0xffffff, cap: 'round' });
-      b.addChild(g);
     };
     dibujar();
     b.eventMode = 'static';

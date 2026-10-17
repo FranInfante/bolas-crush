@@ -37,7 +37,7 @@ export function boton(texto: string, w: number, h: number, color: number, alPuls
 
 // Personajes con cara 3D (arte-fuente/ → public/arte/<id>.webp, más <id>-ojos y <id>-boca: parches del mismo tamaño
 // con los ojos cerrados y la boca abierta). Cara = centro y radio del círculo del avatar, en píxeles de la textura.
-const RETRATOS: Record<string, { cara: [number, number, number] }> = { rocio: { cara: [167, 200, 128] } };
+const RETRATOS: Record<string, { cara: [number, number, number] }> = { rocio: { cara: [176, 232, 128] } };
 const retratos = new Map<string, { base: Texture; ojos: Texture; boca: Texture }>();
 /** Precarga los retratos para que avatar() sea síncrona. */
 export async function cargarRetratos(): Promise<void> {
