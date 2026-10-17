@@ -661,8 +661,99 @@ test('niveles 1-60: tras caer() no queda ninguna casilla vacía (30 jugadas al a
       const [a, b] = jugadas[Math.floor(azar() * jugadas.length)];
       p.intercambiar(a, b);
       p.tablero.forEach((fila, f) => fila.forEach((ce, c) => {
-        if (ce.existe && ce.escarcha === 0) assert.ok(ce.ficha, `nivel ${id}, jugada ${j}: vacía (${f},${c})`);
+        if (ce.existe && ce.escarcha === 0 && ce.pala === undefined) assert.ok(ce.ficha, `nivel ${id}, jugada ${j}: vacía (${f},${c})`);
       }));
     }
   }
+});
+
+// ---------------- sacabolas (cuadrado 2x2) ----------------
+const CUADRO = ['01201', '13312', '23130', '01201', '12012']; // (2,3)→(2,2) cierra un cuadrado de 3 sin línea
+
+test('sacabolas: un cuadrado 2x2 es jugada válida y crea el sacabolas donde movió el jugador', () => {
+  const p = nuevo(CUADRO);
+  assert.notEqual(p.pista(), null);
+  const pasos = p.intercambiar(pos(2, 3), pos(2, 2));
+  const crea = de(pasos, 'crearEspecial');
+  assert.equal(crea.length, 1);
+  assert.equal(crea[0].ficha.especial, 'sacabolas');
+  assert.deepEqual(crea[0].pos, pos(2, 2));
+  assert.equal(de(pasos, 'eliminar')[0].celdas.length, 3);
+});
+
+test('sacabolas: quita la cruz y vuela a la única mancha del tablero', () => {
+  const p = nuevo(BASE, { objetivo: { tipo: 'manchas' } });
+  especial(p, 2, 2, 'sacabolas');
+  poner(p, 4, 4, { mancha: 1 });
+  const pasos = p.usarCuchara(pos(2, 2));
+  const det = de(pasos, 'detonar').find((d) => d.especial === 'sacabolas')!;
+  assert.deepEqual(conjunto(det.celdas), conjunto([pos(2, 2), pos(1, 2), pos(3, 2), pos(2, 1), pos(2, 3)]));
+  const vuelos = de(pasos, 'vuelo');
+  assert.equal(vuelos.length, 1);
+  assert.deepEqual(vuelos[0].hasta, pos(4, 4));
+  assert.equal(p.tablero[4][4].mancha, 0);
+  assert.equal(p.estado, 'ganado');
+});
+
+test('sacabolas: en carapinas vuela a la casilla de debajo de una carapina', () => {
+  const p = nuevo(BASE, { objetivo: { tipo: 'carapinas', n: 1 } });
+  especial(p, 4, 0, 'sacabolas');
+  p.tablero[0][4].ficha = { id: 1, tipo: 'carapina', sabor: -1, especial: 'ninguno' };
+  const pasos = p.usarCuchara(pos(4, 0));
+  assert.deepEqual(de(pasos, 'vuelo')[0].hasta, pos(1, 4));
+});
+
+test('sacabolas + sacabolas: salen 3 a casillas distintas', () => {
+  const p = nuevo(BASE);
+  especial(p, 2, 2, 'sacabolas');
+  especial(p, 2, 3, 'sacabolas');
+  const vuelos = de(p.intercambiar(pos(2, 3), pos(2, 2)), 'vuelo');
+  assert.equal(vuelos.length, 3);
+  assert.equal(conjunto(vuelos.map((v) => v.hasta)).size, 3);
+});
+
+test('sacabolas + raya: vuela con la raya y la detona en el destino', () => {
+  const p = nuevo(BASE, { objetivo: { tipo: 'manchas' } });
+  especial(p, 2, 2, 'sacabolas');
+  especial(p, 2, 3, 'rayaH');
+  poner(p, 0, 0, { mancha: 1 });
+  const pasos = p.intercambiar(pos(2, 3), pos(2, 2));
+  const v = de(pasos, 'vuelo')[0];
+  assert.equal(v.carga, 'rayaH');
+  assert.deepEqual(v.hasta, pos(0, 0));
+  const raya = de(pasos, 'detonar').find((d) => d.especial === 'rayaH' && d.pos.f === 0)!;
+  assert.equal(raya.celdas.length, 5);
+});
+
+test('relleno inicial: sin cuadrados 2x2 hechos', () => {
+  for (let semilla = 1; semilla <= 30; semilla++) {
+    const p = new Partida({ id: 1, nombre: 't', forma: Array(7).fill('ooooooo'), sabores: 4, movimientos: 20, objetivo: { tipo: 'puntos' }, estrellas: [1, 2, 3], semilla });
+    const s = (f: number, c: number) => p.tablero[f]?.[c]?.ficha?.sabor ?? -1;
+    for (let f = 0; f < 6; f++) for (let c = 0; c < 6; c++) {
+      const v = s(f, c);
+      assert.ok(!(v === s(f, c + 1) && v === s(f + 1, c) && v === s(f + 1, c + 1)), `semilla ${semilla} (${f},${c})`);
+    }
+  }
+});
+
+// ---------------- pala de helado ----------------
+test('pala: se llena con golpes y a la 3ª suelta una carapina debajo', () => {
+  const p = nuevo(BASE, { objetivo: { tipo: 'carapinas', n: 2 } });
+  poner(p, 0, 2, { pala: 0, ficha: null });
+  assert.deepEqual(de(p.usarCuchara(pos(0, 2)), 'pala').map((x) => x.carga), [1]);
+  p.usarCuchara(pos(0, 2));
+  const ultimo = de(p.usarCuchara(pos(0, 2)), 'pala')[0];
+  assert.equal(ultimo.carga, 0);
+  assert.deepEqual(ultimo.suelta?.hasta, pos(1, 2));
+  assert.equal(p.tablero[1][2].ficha?.tipo, 'carapina');
+  assert.equal(p.tablero[0][2].ficha, null); // la pala no cae ni se rellena
+});
+
+test('pala: un match al lado la llena; si no hacen falta carapinas se queda llena', () => {
+  const p = nuevo(['01201', '12312', '23030', '0p201', '12012']);
+  poner(p, 3, 1, { pala: 2, ficha: null });
+  const pala = de(p.intercambiar(pos(1, 2), pos(2, 2)), 'pala');
+  assert.equal(pala.length, 1);
+  assert.equal(pala[0].carga, 3);
+  assert.equal(pala[0].suelta, undefined);
 });

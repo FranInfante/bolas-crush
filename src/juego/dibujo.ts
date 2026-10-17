@@ -135,6 +135,7 @@ export class Texturas {
 
   bolaTex(sabor: number, esp: Especial): Texture {
     if (esp === 'bolaBolas') return this.bolaBolas();
+    if (esp === 'sacabolas') return this.gen(`b${sabor}sacabolas`, TEX, (c) => this.dibujarSacabolas(c, sabor));
     return this.gen(`b${sabor}${esp}`, TEX, (c) => {
       const cx = TEX / 2;
       if (esp === 'tarrina') {
@@ -152,6 +153,60 @@ export class Texturas {
       const g = new Graphics();
       bola(g, cx, 46, R, sabor);
       if (esp === 'rayaH' || esp === 'rayaV') for (const d of [-R * 0.5, 0, R * 0.5]) banda(g, cx, 46, R, d, 8, esp === 'rayaH');
+      c.addChild(g);
+    });
+  }
+
+  /** Bola con dos alas de barquillo (waffle) y una cucharita de helado delante: el «avioncito» de Bolas. */
+  private dibujarSacabolas(c: Container, sabor: number): void {
+    const cx = TEX / 2, cy = 50, r = 25;
+    sombra(c, cx, cy, r + 6);
+    const g = new Graphics();
+    const ala = (d: number) => { // d = -1 izquierda, +1 derecha
+      const X = (x: number) => cx + d * x;
+      g.poly([X(18), cy - 6, X(46), cy - 30, X(47), cy + 4, X(20), cy + 12]).fill(0xe9b765).stroke({ width: 2.5, color: 0x9c6a24, join: 'round' });
+      for (const t of [0.3, 0.6]) g.moveTo(X(18 + 28 * t), cy - 6 - 24 * t).lineTo(X(20 + 27 * t), cy + 12 - 8 * t).stroke({ width: 1.5, color: 0x9c6a24, alpha: 0.7 });
+      for (const t of [0.25, 0.5, 0.75]) g.moveTo(X(18 + 5 * t), cy - 6 + 18 * t).lineTo(X(46 + t), cy - 30 + 34 * t).stroke({ width: 1.5, color: 0x9c6a24, alpha: 0.5 });
+    };
+    ala(-1); ala(1);
+    bola(g, cx, cy, r, sabor);
+    // Cucharita de helado plateada cruzando la bola en diagonal.
+    const el = (x: number, y: number, rx: number, ry: number, ang: number): number[] => Array.from({ length: 24 }, (_, i) => {
+      const t = (i / 24) * Math.PI * 2, px = Math.cos(t) * rx, py = Math.sin(t) * ry;
+      return [x + px * Math.cos(ang) - py * Math.sin(ang), y + px * Math.sin(ang) + py * Math.cos(ang)];
+    }).flat();
+    g.moveTo(cx - 26, cy + 30).lineTo(cx + 12, cy - 8).stroke({ width: 9, color: 0x3d4753, cap: 'round' });
+    g.moveTo(cx - 26, cy + 30).lineTo(cx + 12, cy - 8).stroke({ width: 5, color: 0xdfe5eb, cap: 'round' });
+    g.poly(el(cx + 19, cy - 15, 15, 10.5, -Math.PI / 4)).fill(0xe3e9ef).stroke({ width: 2.8, color: 0x3d4753, join: 'round' });
+    g.poly(el(cx + 17, cy - 17, 8, 4.5, -Math.PI / 4)).fill({ color: 0xffffff, alpha: 0.85 });
+    c.addChild(g);
+  }
+
+  /** Pala (cuchara) de heladero de lado, con el cuenco lleno a `nivel` de 0 a 3. */
+  pala(nivel: number): Texture {
+    const n = Math.max(0, Math.min(3, Math.round(nivel)));
+    return this.gen(`pala${n}`, CELDA, (c) => {
+      const g = new Graphics();
+      const metal = 0xc3ccd6, borde = 0x56636f, cx = 29, cy = 33, r = 19;
+      g.moveTo(42, 46).lineTo(57, 58).stroke({ width: 9, color: borde, cap: 'round' }); // mango corto inclinado
+      g.moveTo(42, 46).lineTo(57, 58).stroke({ width: 5.5, color: 0xe8edf2, cap: 'round' });
+      g.ellipse(cx, cy, r, 6).fill(0x3d4753); // interior del cuenco
+      const rosa = 0xffb3d1, claro = 0xffd3e4;
+      if (n === 1) g.ellipse(cx, cy + 1, r - 2, 4.5).fill(rosa);
+      if (n === 2) { g.ellipse(cx, cy, r - 1, 6).fill(rosa); g.ellipse(cx, cy - 3, r - 4, 6).fill(claro); }
+      if (n === 3) { g.circle(cx, cy - 3, 16).fill(rosa); g.circle(cx - 2, cy - 5, 13).fill(claro); }
+      // Frente del cuenco: media esfera metálica.
+      const pts: number[] = [];
+      for (let i = 0; i <= 16; i++) { const t = (i / 16) * Math.PI; pts.push(cx + Math.cos(t) * r, cy + Math.sin(t) * (r - 1)); }
+      g.poly(pts).fill(metal).stroke({ width: 2.4, color: borde, join: 'round' });
+      g.ellipse(cx - 8, cy + 8, 6, 3.2).fill({ color: 0xffffff, alpha: 0.75 });
+      g.ellipse(cx + 8, cy + 12, 5, 2).fill({ color: 0x56636f, alpha: 0.25 });
+      if (n === 3) {
+        g.ellipse(cx - 7, cy - 12, 5, 2.8).fill({ color: 0xffffff, alpha: 0.85 });
+        g.roundRect(cx + 8, cy - 2, 5, 11, 2.5).fill(rosa); g.circle(cx + 10.5, cy + 9, 3.2).fill(rosa); // goterones por el borde
+        g.roundRect(cx - 14, cy - 2, 4, 7, 2).fill(rosa); g.circle(cx - 12, cy + 5, 2.4).fill(rosa);
+      }
+      for (let i = 0; i < 3; i++) g.circle(10 + i * 9, 59, 2.6).fill(i < n ? 0xff4f8b : 0x3d4753).stroke({ width: 1, color: 0xffffff, alpha: 0.8 }); // contador
       c.addChild(g);
     });
   }
