@@ -1,8 +1,8 @@
-// Iconos 3D generados con IA (public/arte/iconos/<id>.webp). Si no cargan, quedan los dibujos por código.
+// Iconos dibujados con IA en el estilo del juego (public/arte/iconos/<id>.webp). Si no cargan, quedan los dibujos por código.
 import { Assets } from 'pixi.js';
 import type { Texture } from 'pixi.js';
 
-const IDS = ['cuchara', 'manoLibre', 'sacabolas', 'mas5'];
+const IDS = ['cuchara', 'manoLibre', 'sacabolas', 'mas5', 'sonido', 'silencio'];
 const iconos = new Map<string, Texture>();
 
 export async function cargarIconos(): Promise<void> {
