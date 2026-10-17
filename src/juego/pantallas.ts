@@ -7,7 +7,7 @@ import { TEXTOS } from '../datos/frases.ts';
 import type { Juego, Escena } from './app.ts';
 import { estrella } from './dibujo.ts';
 import { ease } from './tween.ts';
-import { avatar, boton, busto, cargarProgreso, cofrePara, abrirCofre, DW, fmt, guardarResultado, moneda, panel, PRECIO, txt, txtBorde, usarPot } from './ui.ts';
+import { boton, busto, cargarProgreso, cofrePara, abrirCofre, DW, fmt, guardarResultado, moneda, panel, PRECIO, txt, txtBorde, usarPot } from './ui.ts';
 import type { PotId } from './ui.ts';
 import { mostrarCofre } from './enganche.ts';
 import { EXTRA } from './textos-extra.ts';
@@ -71,12 +71,12 @@ export class EscenaFicha implements Escena {
     t.addChild(mv, mn);
 
     // Presentador
-    const pers = PERSONAJE[n.presenta?.quien ?? 'rocio'];
+    const pers = PERSONAJE.rocio; // Fran 17-10: de momento solo habla Rocío (el resto no tiene retrato)
     const av = busto(pers, 42, 84); av.position.set(-w / 2 + 66, 66); // de pie sobre el borde de abajo del bocadillo
-    const burbuja = new Graphics().roundRect(-w / 2 + 112, 38, w - 140, 112, 18).fill(0xffffff).poly([-w / 2 + 112, 70, -w / 2 + 98, 84, -w / 2 + 112, 98]).fill(0xffffff);
-    const nombre = txt(pers.nombre, 14, 0x2f6fde, { fontWeight: '700' }); nombre.anchor.set(0, 0.5); nombre.position.set(-w / 2 + 126, 54);
-    const frase = txt(n.presenta?.texto ?? '¡A por ello, mi arma!', 16, 0x001b41, { wordWrap: true, wordWrapWidth: w - 175, align: 'left' });
-    frase.anchor.set(0, 0.5); frase.position.set(-w / 2 + 126, 100);
+    const burbuja = new Graphics().roundRect(-w / 2 + 140, 38, w - 166, 112, 18).fill(0xffffff).poly([-w / 2 + 142, 62, -w / 2 + 124, 80, -w / 2 + 142, 88]).fill(0xffffff); // con pico hacia Rocío y aire entre los dos
+    const nombre = txt(pers.nombre, 14, 0x2f6fde, { fontWeight: '700' }); nombre.anchor.set(0, 0.5); nombre.position.set(-w / 2 + 154, 54);
+    const frase = txt(n.presenta?.texto ?? '¡A por ello, mi arma!', 16, 0x001b41, { wordWrap: true, wordWrapWidth: w - 200, align: 'left' });
+    frase.anchor.set(0, 0.5); frase.position.set(-w / 2 + 154, 100);
     t.addChild(burbuja, nombre, frase, av);
 
     const repintar: (() => void)[] = [];
@@ -153,7 +153,7 @@ export function crearResultado(juego: Juego, nivel: Nivel, estado: 'ganado' | 'p
   const c = new Container();
   c.position.set(DW / 2, juego.dh / 2);
   raiz.addChild(velo, c);
-  const pers = PERSONAJE[nivel.presenta?.quien ?? 'rocio'];
+  const pers = PERSONAJE.rocio; // de momento solo habla Rocío
   const frases = ganado ? pers.frasesGanar : pers.frasesPerder;
   const frase = frases[Math.floor(Math.random() * frases.length)];
 
@@ -187,9 +187,9 @@ export function crearResultado(juego: Juego, nivel: Nivel, estado: 'ganado' | 'p
   const pl = txt(TEXTOS.puntos, 14, 0xffd92e); pl.position.set(0, -44);
   c.addChild(pl, pts);
 
-  const av = avatar(pers, 30); av.position.set(-150, 62);
-  const burbuja = new Graphics().roundRect(-108, 28, 270, 70, 16).fill(0xffffff).poly([-108, 52, -120, 64, -108, 76]).fill(0xffffff);
-  const ft = txt(frase, 16, 0x001b41, { wordWrap: true, wordWrapWidth: 245 }); ft.position.set(27, 63);
+  const av = busto(pers, 30, 36); av.position.set(-140, 62); // de cuerpo, sin círculo
+  const burbuja = new Graphics().roundRect(-92, 28, 254, 70, 16).fill(0xffffff).poly([-90, 48, -108, 62, -90, 70]).fill(0xffffff);
+  const ft = txt(frase, 16, 0x001b41, { wordWrap: true, wordWrapWidth: 230 }); ft.position.set(35, 63);
   c.addChild(burbuja, ft, av);
   if (!ganado) {
     const sm = txt(TEXTOS.sinMovimientos, 14, 0xffffff, { wordWrap: true, wordWrapWidth: 340 }); sm.position.set(0, 120);
