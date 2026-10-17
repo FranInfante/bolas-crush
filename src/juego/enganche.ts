@@ -5,6 +5,7 @@ import { ease } from './tween.ts';
 import { boton, cargarProgreso, DW, moneda, NOMBRE_POT, panel, PRECIO, recogerRegalo, REGALO_MONEDAS, txt, txtBorde, usarPot } from './ui.ts';
 import type { PotId } from './ui.ts';
 import { EXTRA } from './textos-extra.ts';
+import { iconoTex } from './iconos.ts';
 
 /** Icono de un potenciador, de unos 56 px. Los tres previos usan la bola real del tablero. */
 export function iconoPot(juego: Juego, id: PotId): Container {
@@ -13,6 +14,10 @@ export function iconoPot(juego: Juego, id: PotId): Container {
     const esp = id === 'sirope' ? 'rayaH' : id;
     const s = new Sprite(juego.tx.bolaTex(id === 'bolaBolas' ? -1 : 0, esp));
     s.anchor.set(0.5); s.scale.set(0.45);
+    c.addChild(s);
+  } else if ((id === 'cuchara' || id === 'manoLibre') && iconoTex(id)) {
+    const s = new Sprite(iconoTex(id)); s.anchor.set(0.5);
+    s.scale.set((id === 'cuchara' ? 54 : 48) / (id === 'cuchara' ? s.texture.width : s.texture.height));
     c.addChild(s);
   } else if (id === 'cuchara') {
     const g = new Graphics();
@@ -28,6 +33,9 @@ export function iconoPot(juego: Juego, id: PotId): Container {
     g.roundRect(-17, -4, 34, 26, 11).fill(piel).stroke({ width: 2, color: borde });
     g.roundRect(-26, -2, 12, 7, 3.5).fill(piel).stroke({ width: 1.5, color: borde });
     c.addChild(g);
+  } else if (iconoTex('mas5')) {
+    const s = new Sprite(iconoTex('mas5')); s.anchor.set(0.5); s.scale.set(52 / s.texture.width);
+    c.addChild(s, txtBorde('+5', 24, 0xffffff, 0x00112b));
   } else {
     c.addChild(new Graphics().circle(0, 0, 25).fill(0x2f6fde).stroke({ width: 3.5, color: 0xffffff }), txtBorde('+5', 24, 0xffffff, 0x00112b));
   }

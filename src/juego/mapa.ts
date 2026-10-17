@@ -122,7 +122,7 @@ export class EscenaMapa implements Escena {
     const x = p ? 26 : 0;
     t.position.set(x, -11); s.position.set(x, 14);
     c.addChild(t, s);
-    if (p) { const a = avatar(p, 20); a.position.set(-165, 0); c.addChild(a); }
+    if (p) { const a = avatar(p, 20, 0); a.position.set(-165, 0); c.addChild(a); }
     return c;
   }
 
