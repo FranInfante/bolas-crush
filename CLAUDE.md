@@ -10,7 +10,7 @@ Plan, decisiones y fases: `docs/PLAN.md`. Mapa de notas: `Hub.md`.
 - Sin vidas: perder un nivel = repetir cuando quieras. Sin dinero real, sin anuncios, sin datos personales.
 - **Publicar solo cuando Fran lo pida.** Ramas `feature/fran-<n>-<tema>` → `dev` → `stage` → `prod` por MR; prod solo con su «Vale».
 - **Dónde se publica:** GitHub Pages, repo público `FranInfante/bolas-crush` (remoto `github`). Stage = https://franinfante.github.io/bolas-crush/ con `bash scripts/publicar.sh` desde la rama `stage`. Nada en servidores de Javi/jcubo (Fran, 17-10: «nada de servers de javi»).
-- Antes de dar algo por hecho: `npm test` y `npm run typecheck` limpios y **probado en el navegador** (launch.json → `bolas-crush`, puerto 5190, vertical de móvil).
+- Antes de dar algo por hecho: `npm test` y `npm run typecheck` limpios y **probado en el navegador** (launch.json → `bolas-crush`, puerto 5190, móvil en horizontal 812×375: se juega apaisado como Candy Crush).
 - Lo pesado (`npm ci`, builds largos) va por `turno`.
 
 ## Arrancar

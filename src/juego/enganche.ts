@@ -48,8 +48,11 @@ function modal(juego: Juego): { raiz: Container; c: Container } {
   const velo = new Graphics().rect(-1000, -1000, DW + 2000, juego.dh + 2000).fill({ color: 0x000a1f, alpha: 0.78 });
   velo.eventMode = 'static';
   const c = new Container();
-  c.position.set(DW / 2, juego.dh / 2);
-  raiz.addChild(velo, c);
+  const m = new Container(); // en apaisado (pantalla baja) la ventana encoge para caber entera
+  m.position.set(DW / 2, juego.dh / 2);
+  m.scale.set(Math.min(1, juego.dh / 580));
+  m.addChild(c);
+  raiz.addChild(velo, m);
   return { raiz, c };
 }
 

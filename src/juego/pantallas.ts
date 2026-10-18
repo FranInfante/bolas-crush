@@ -151,8 +151,11 @@ export function crearResultado(juego: Juego, nivel: Nivel, estado: 'ganado' | 'p
   const velo = new Graphics().rect(-1000, -1000, DW + 2000, juego.dh + 2000).fill({ color: 0x000a1f, alpha: 0.7 });
   velo.eventMode = 'static'; // traga los toques de debajo
   const c = new Container();
-  c.position.set(DW / 2, juego.dh / 2);
-  raiz.addChild(velo, c);
+  const m = new Container(); // en apaisado (pantalla baja) la ventana encoge para caber entera
+  m.position.set(DW / 2, juego.dh / 2);
+  m.scale.set(Math.min(1, juego.dh / 580));
+  m.addChild(c);
+  raiz.addChild(velo, m);
   const pers = PERSONAJE.rocio; // de momento solo habla Rocío
   const frases = ganado ? pers.frasesGanar : pers.frasesPerder;
   const frase = frases[Math.floor(Math.random() * frases.length)];

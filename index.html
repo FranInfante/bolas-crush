@@ -10,10 +10,16 @@
 <style>
 html,body{margin:0;height:100%;background:#001B41;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
 #app{position:fixed;inset:0}
+/* Se juega en horizontal, como Candy Crush (Fran 18-10): en el móvil en vertical se pide girarlo. */
+#gira{display:none;position:fixed;inset:0;z-index:9;background:#001B41;color:#fff;font:600 22px Fredoka,sans-serif;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center}
+#gira b{font-size:64px;animation:gira 1.6s ease-in-out infinite}
+@keyframes gira{50%{transform:rotate(-90deg)}}
+@media (orientation:portrait) and (pointer:coarse){#gira{display:flex}}
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="gira"><b>📱</b>Gira el móvil para jugar</div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
