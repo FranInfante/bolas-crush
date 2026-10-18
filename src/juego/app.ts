@@ -21,6 +21,8 @@ declare global {
 }
 
 const ALTO_MIN = 720; // alto lógico mínimo: en pantallas más altas hay más sitio, no más escala
+// Apaisado (Fran 18-10, como Candy Crush): alto lógico fijo y el ancho que sobre es para poner el marcador al lado del tablero.
+const ALTO_APAISADO = 450, ANCHO_APAISADO = 920;
 
 export class Juego {
   app!: Application;
@@ -29,12 +31,14 @@ export class Juego {
   au = new Sonido();
   root = new Container();
   dh = ALTO_MIN;
+  dw = DW;           // ancho lógico visible (centrado en DW/2); en apaisado es mayor que DW
+  apaisado = false;
   reducido = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   private escena: Escena | null = null;
   private hitos: (Texture | null)[] = [];
   private bg!: Sprite;
   private manchas: { s: Sprite; vx: number; vy: number }[] = [];
-  private sonidoBtn = new Container();
+  readonly sonidoBtn = new Container();
   private nivelActual = 1;
 
   async iniciar(contenedor: HTMLElement): Promise<void> {
@@ -60,6 +64,11 @@ export class Juego {
     this.app.renderer.on('resize', () => this.ajustar()); // tras el ajuste de Pixi, no antes
     // El audio solo puede arrancar tras un gesto.
     window.addEventListener('pointerdown', () => this.au.arrancar(), { capture: true });
+    // En el móvil, al primer toque: pantalla completa y horizontal fijo donde el navegador deja (Android); si no, avisa #gira.
+    if (matchMedia('(pointer: coarse)').matches) window.addEventListener('pointerdown', () => {
+      const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+      document.documentElement.requestFullscreen?.().then(() => o.lock?.('landscape')).catch(() => { /* no se puede: el aviso #gira se encarga */ });
+    }, { once: true, capture: true });
     this.irMapa();
     this.ajustar();
     this.regaloSiToca();
@@ -125,7 +134,6 @@ export class Juego {
     b.eventMode = 'static';
     b.cursor = 'pointer';
     b.on('pointertap', () => { this.au.arrancar(); this.au.alternarSilencio(); dibujar(); this.au.clic(); });
-    b.position.set(DW - 28, 30);
   }
 
   // ------------------------------------------------------------------ escenas
@@ -134,6 +142,7 @@ export class Juego {
     this.root.removeChildren();
     this.escena = e;
     this.root.addChild(e.container, this.sonidoBtn);
+    this.sonidoBtn.position.set(DW - 28, 30);
     e.layout(this.dh);
     window.bolas.partida = null;
   }
@@ -160,6 +169,7 @@ export class Juego {
     this.root.removeChildren();
     this.escena = e;
     this.root.addChild(e.container, this.sonidoBtn);
+    this.sonidoBtn.position.set(DW - 28, 30);
     e.layout(this.dh);
     window.bolas.partida = e.partida;
   }
@@ -172,11 +182,14 @@ export class Juego {
   // ------------------------------------------------------------------ tamaño
   private ajustar(): void {
     const W = this.app.screen.width, H = this.app.screen.height;
-    const k = Math.min(W / DW, H / ALTO_MIN);
+    this.apaisado = W > H * 1.2;
+    const k = this.apaisado ? Math.min(H / ALTO_APAISADO, W / ANCHO_APAISADO) : Math.min(W / DW, H / ALTO_MIN);
     this.dh = H / k;
+    this.dw = W / k;
     this.root.scale.set(k);
     this.root.position.set((W - DW * k) / 2, 0);
     this.bg.width = W; this.bg.height = H;
+    this.sonidoBtn.position.set(DW - 28, 30);
     this.escena?.layout(this.dh);
   }
 }
