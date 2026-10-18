@@ -14,13 +14,16 @@ export class Sonido {
   arrancar(): void {
     try {
       if (!this.ctx) {
+        // iPhone: sin esto, con el botón de silencio puesto Web Audio no suena (Safari 16.4+).
+        const nav = navigator as Navigator & { audioSession?: { type: string } };
+        if (nav.audioSession) nav.audioSession.type = 'playback';
         this.ctx = new AudioContext();
         const n = this.ctx.sampleRate;
         this.ruido = this.ctx.createBuffer(1, n, n);
         const d = this.ruido.getChannelData(0);
         for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state !== 'running') void this.ctx.resume(); // también 'interrupted' (iPhone tras bloquear o una llamada)
     } catch { /* sin audio */ }
   }
 

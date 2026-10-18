@@ -63,7 +63,8 @@ export class Juego {
     window.bolas = { nivel: (n) => this.irPartida(n), ganar: () => this.forzar('ganado'), perder: () => this.forzar('perdido'), partida: null, juego: this };
     this.app.renderer.on('resize', () => this.ajustar()); // tras el ajuste de Pixi, no antes
     // El audio solo puede arrancar tras un gesto.
-    window.addEventListener('pointerdown', () => this.au.arrancar(), { capture: true });
+    // iPhone solo da permiso de sonido al soltar el dedo (touchend/click), no al pulsar: se escuchan todos.
+    for (const ev of ['pointerdown', 'touchend', 'click']) window.addEventListener(ev, () => this.au.arrancar(), { capture: true });
     // En el móvil, al primer toque: pantalla completa y horizontal fijo donde el navegador deja (Android); si no, avisa #gira.
     if (matchMedia('(pointer: coarse)').matches) window.addEventListener('pointerdown', () => {
       const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
