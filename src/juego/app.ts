@@ -33,6 +33,9 @@ export class Juego {
   dh = ALTO_MIN;
   dw = DW;           // ancho lógico visible (centrado en DW/2); en apaisado es mayor que DW
   apaisado = false;
+  // Zona segura (notch, isla, barra de inicio) en coordenadas lógicas: lo que se toca o se lee va dentro; el fondo, por todo.
+  izq = 0; der = DW; arriba = 0; abajo = 0;
+  private sonda = document.createElement('div');
   reducido = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   private escena: Escena | null = null;
   private hitos: (Texture | null)[] = [];
@@ -45,6 +48,8 @@ export class Juego {
     this.app = new Application();
     await this.app.init({ resizeTo: window, background: '#001B41', antialias: true, resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true });
     contenedor.appendChild(this.app.canvas);
+    this.sonda.style.cssText = 'position:fixed;inset:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+    document.body.appendChild(this.sonda);
     this.app.canvas.style.touchAction = 'none';
     this.tw = new Tweens(this.app.ticker);
 
@@ -143,7 +148,7 @@ export class Juego {
     this.root.removeChildren();
     this.escena = e;
     this.root.addChild(e.container, this.sonidoBtn);
-    this.sonidoBtn.position.set(DW - 28, 30);
+    this.sonidoBtn.position.set(this.der - 28, this.arriba + 30);
     e.layout(this.dh);
     window.bolas.partida = null;
   }
@@ -170,7 +175,7 @@ export class Juego {
     this.root.removeChildren();
     this.escena = e;
     this.root.addChild(e.container, this.sonidoBtn);
-    this.sonidoBtn.position.set(DW - 28, 30);
+    this.sonidoBtn.position.set(this.der - 28, this.arriba + 30);
     e.layout(this.dh);
     window.bolas.partida = e.partida;
   }
@@ -187,10 +192,15 @@ export class Juego {
     const k = this.apaisado ? Math.min(H / ALTO_APAISADO, W / ANCHO_APAISADO) : Math.min(W / DW, H / ALTO_MIN);
     this.dh = H / k;
     this.dw = W / k;
+    const cs = getComputedStyle(this.sonda), px = (v: string) => (parseFloat(v) || 0) / k;
+    this.izq = DW / 2 - this.dw / 2 + px(cs.paddingLeft);
+    this.der = DW / 2 + this.dw / 2 - px(cs.paddingRight);
+    this.arriba = px(cs.paddingTop);
+    this.abajo = px(cs.paddingBottom);
     this.root.scale.set(k);
     this.root.position.set((W - DW * k) / 2, 0);
     this.bg.width = W; this.bg.height = H;
-    this.sonidoBtn.position.set(DW - 28, 30);
+    this.sonidoBtn.position.set(this.der - 28, this.arriba + 30);
     this.escena?.layout(this.dh);
   }
 }

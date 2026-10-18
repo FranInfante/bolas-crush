@@ -388,34 +388,34 @@ export class EscenaPartida implements Escena {
 
   // ------------------------------------------------------------------ Escena
   layout(dh: number): void {
-    if (this.juego.apaisado) { this.layoutApaisado(dh); return; }
-    this.hud.position.set(0, 0);
-    const libreAlto = dh - ALTO_HUD - 16 - ALTO_BARRA, libreAncho = DW - 20;
-    const yBarra = dh - ALTO_BARRA / 2 - 6;
+    const j = this.juego;
+    if (j.apaisado) { this.layoutApaisado(dh); return; }
+    this.hud.position.set(0, j.arriba);
+    const libreAlto = dh - j.arriba - j.abajo - ALTO_HUD - 16 - ALTO_BARRA, libreAncho = DW - 20;
+    const yBarra = dh - j.abajo - ALTO_BARRA / 2 - 6;
     this.barra2.position.set(0, yBarra);
     this.avisoModo.position.set(DW / 2, yBarra);
     const s = Math.min(libreAncho / this.vista.ancho, libreAlto / this.vista.alto, 1.1);
     this.vista.scale.set(s);
     this.base.x = (DW - this.vista.ancho * s) / 2;
-    this.base.y = ALTO_HUD + (libreAlto - this.vista.alto * s) / 2;
+    this.base.y = j.arriba + ALTO_HUD + (libreAlto - this.vista.alto * s) / 2;
     this.vista.position.set(this.base.x, this.base.y);
   }
 
-  /** Como Candy Crush en horizontal: marcador y ayudas en una columna a la izquierda, tablero a la derecha. */
+  /** Como Candy Crush en horizontal: marcador y ayudas en una columna a la izquierda, tablero a la derecha. Todo dentro de la zona segura (notch). */
   private layoutApaisado(dh: number): void {
-    const izq = DW / 2 - this.juego.dw / 2; // borde izquierdo de la pantalla en coordenadas lógicas
-    const x0 = izq + 8, y0 = Math.max(0, (dh - ALTO_HUD - ALTO_BARRA) / 2);
+    const j = this.juego, alto = dh - j.arriba - j.abajo;
+    const x0 = j.izq + 8, y0 = j.arriba + Math.max(0, (alto - ALTO_HUD - ALTO_BARRA) / 2);
     this.hud.position.set(x0, y0);
     const yBarra = y0 + ALTO_HUD + ALTO_BARRA / 2 - 6;
     this.barra2.position.set(x0, yBarra);
     this.avisoModo.position.set(x0 + DW / 2, yBarra);
-    const der = izq + this.juego.dw;
-    this.juego.sonidoBtn.position.set(der - 28, 30); // en la esquina, fuera del tablero y de las ventanas
-    const ax = x0 + DW + 8, aw = der - 56 - ax, ah = dh - 20;
+    // El sonido va en la esquina de arriba a la derecha (lo pone Juego): el tablero le deja hueco.
+    const ax = x0 + DW + 8, aw = j.der - 56 - ax, ah = alto - 20;
     const s = Math.min(aw / this.vista.ancho, ah / this.vista.alto, 1.1);
     this.vista.scale.set(s);
     this.base.x = ax + (aw - this.vista.ancho * s) / 2;
-    this.base.y = 10 + (ah - this.vista.alto * s) / 2;
+    this.base.y = j.arriba + 10 + (ah - this.vista.alto * s) / 2;
     this.vista.position.set(this.base.x, this.base.y);
   }
 
