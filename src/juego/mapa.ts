@@ -12,7 +12,6 @@ import { EXTRA } from './textos-extra.ts';
 const TRAMOS = ['tramo-1', 'tramo-2', 'tramo-3']; // Giralda, Torre del Oro, Setas (de abajo arriba, en ciclo)
 const SEP = 125;       // separación vertical entre niveles
 const HUECO_EP = 80;   // hueco extra en cada cambio de episodio, para el cartel
-const TILE_H = Math.round((DW * 1120) / 640); // los tres fondos miden 640x1120
 const FONDO_BASE = 200; // el fondo empieza 200 px por debajo del nivel 1
 const MARGEN = 140;
 
@@ -23,7 +22,6 @@ export async function cargarHitos(carga: (url: string) => Promise<Texture | null
 
 /** Posición en el mundo del nivel i (0 = nivel 1). El mundo crece hacia arriba (y negativa). */
 const mundoY = (i: number): number => -(i * SEP + Math.floor(i / POR_EP) * HUECO_EP);
-const mundoX = (i: number): number => DW / 2 + Math.sin(i * 0.9) * 115;
 
 export class EscenaMapa implements Escena {
   readonly container = new Container();
@@ -51,6 +49,12 @@ export class EscenaMapa implements Escena {
   private titulo: Text;
   private sub: Text;
   private epMostrado = 0;
+  private cab = new Container();
+  private cabIzq = new Container();          // monedas y estrellas, pegadas al borde seguro izquierdo
+  // Fondo a todo el ancho de la pantalla (Fran 18-10: nada de márgenes azules) y camino más abierto en horizontal.
+  private anchoF = DW;
+  private tileH = Math.round((DW * 1120) / 640); // los tres fondos miden 640x1120
+  private amp = 115;
 
   constructor(juego: Juego, hitos: (Texture | null)[]) {
     this.juego = juego;
@@ -62,8 +66,8 @@ export class EscenaMapa implements Escena {
     cont.addChild(this.capaFondo, this.camino, this.capaCartel, this.capaNodos);
 
     // Cabecera fija: monedas y estrellas a la izquierda, episodio actual en el centro (el sonido va a la derecha).
-    const cab = new Container();
-    const fondoCab = new Graphics().rect(-20, 0, DW + 40, 62).fill({ color: 0x001b41, alpha: 0.88 });
+    const cab = this.cab;
+    const fondoCab = new Graphics().rect(-2000, -2000, DW + 4000, 2062).fill({ color: 0x001b41, alpha: 0.88 }); // sube por detrás del notch
     this.titulo = txtBorde('', 26, 0xffd92e);
     this.titulo.position.set(DW / 2, 24);
     this.sub = txt('', 13, 0xffffff);
@@ -72,7 +76,8 @@ export class EscenaMapa implements Escena {
     const mt = txtBorde(fmt(prog.monedas), 17, 0xffd92e); mt.anchor.set(0, 0.5); mt.position.set(38, 20);
     const est = new Graphics(); estrella(est, 22, 44, 10, 0xffd92e, 0x9a5b00);
     const et = txtBorde(fmt(totalEstrellas(prog)), 17, 0xffffff); et.anchor.set(0, 0.5); et.position.set(38, 44);
-    cab.addChild(fondoCab, this.titulo, this.sub, mon, mt, est, et);
+    this.cabIzq.addChild(mon, mt, est, et);
+    cab.addChild(fondoCab, this.titulo, this.sub, this.cabIzq);
 
     // Arrastre vertical con dedo/ratón (todo el lienzo recoge el gesto).
     this.container.eventMode = 'static';
@@ -96,16 +101,17 @@ export class EscenaMapa implements Escena {
       if (this.actual && !this.actual.destroyed) this.actual.scale.set(1 + Math.sin(this.reloj * 5) * 0.07); // el siguiente nivel late
     };
     juego.app.ticker.add(this.tickFn);
-    this.refrescar();
   }
+
+  private mundoX(i: number): number { return DW / 2 + Math.sin(i * 0.9) * this.amp; }
 
   // ------------------------------------------------------------------ piezas
   private tile(j: number): Container {
     const c = new Container();
-    c.y = FONDO_BASE - (j + 1) * TILE_H;
+    c.position.set(DW / 2 - this.anchoF / 2, FONDO_BASE - (j + 1) * this.tileH);
     const tex = this.hitos[j % TRAMOS.length];
-    if (tex) { const sp = new Sprite(tex); sp.width = DW; sp.height = TILE_H; c.addChild(sp); }
-    c.addChild(new Graphics().rect(0, 0, DW, TILE_H).fill({ color: 0x001b41, alpha: tex ? 0.28 : 0.0 })); // velo para que se lean los nodos
+    if (tex) { const sp = new Sprite(tex); sp.width = this.anchoF; sp.height = this.tileH; c.addChild(sp); }
+    c.addChild(new Graphics().rect(0, 0, this.anchoF, this.tileH).fill({ color: 0x001b41, alpha: tex ? 0.28 : 0.0 })); // velo para que se lean los nodos
     return c;
   }
 
@@ -133,7 +139,7 @@ export class EscenaMapa implements Escena {
     const esActual = jugable && !hecho && id === prog.desbloqueado;
     const dificil = esDificil(id);
     const c = new Container();
-    c.position.set(mundoX(i), mundoY(i));
+    c.position.set(this.mundoX(i), mundoY(i));
     const color = dificil ? (jugable ? 0xc0243e : 0x6a3a58) : hecho ? 0xffc83d : esActual ? 0xff5a6e : jugable ? 0x2f6fde : 0x4a5a7a;
     const borde = dificil ? 0xb06ae0 : 0xffffff;
     c.addChild(
@@ -168,7 +174,7 @@ export class EscenaMapa implements Escena {
     const sy = this.contenido.y;
     const wMin = -sy - MARGEN, wMax = -sy + this.dh + MARGEN;
     // Fondos
-    const j0 = Math.max(0, Math.floor((FONDO_BASE - wMax) / TILE_H)), j1 = Math.max(0, Math.floor((FONDO_BASE - wMin) / TILE_H));
+    const j0 = Math.max(0, Math.floor((FONDO_BASE - wMax) / this.tileH)), j1 = Math.max(0, Math.floor((FONDO_BASE - wMin) / this.tileH));
     this.sincronizar(this.tiles, this.capaFondo, j0, j1, (j) => this.tile(j));
     // Nodos: wy es monótono, así que basta un barrido barato
     let i0 = this.maxN, i1 = -1;
@@ -195,13 +201,13 @@ export class EscenaMapa implements Escena {
     g.clear();
     if (b <= a) return;
     for (let i = a; i <= b; i++) {
-      const p = { x: mundoX(i), y: mundoY(i) };
+      const p = { x: this.mundoX(i), y: mundoY(i) };
       if (i === a) g.moveTo(p.x, p.y);
-      else { const q = { x: mundoX(i - 1), y: mundoY(i - 1) }; g.quadraticCurveTo(q.x + (p.x - q.x) * 0.1 + (i % 2 ? 60 : -60), (q.y + p.y) / 2, p.x, p.y); }
+      else { const q = { x: this.mundoX(i - 1), y: mundoY(i - 1) }; g.quadraticCurveTo(q.x + (p.x - q.x) * 0.1 + (i % 2 ? 60 : -60), (q.y + p.y) / 2, p.x, p.y); }
     }
     g.stroke({ width: 22, color: 0xffffff, alpha: 0.14, cap: 'round', join: 'round' });
     for (let i = a + 1; i <= b; i++) {
-      const p = { x: mundoX(i - 1), y: mundoY(i - 1) }, q = { x: mundoX(i), y: mundoY(i) };
+      const p = { x: this.mundoX(i - 1), y: mundoY(i - 1) }, q = { x: this.mundoX(i), y: mundoY(i) };
       for (let t = 0.2; t < 0.9; t += 0.2) g.circle(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t, 3).fill({ color: 0xffffff, alpha: 0.5 });
     }
   }
@@ -222,13 +228,22 @@ export class EscenaMapa implements Escena {
 
   /** Limita el desplazamiento: del nivel 1 (abajo, con su cartel) al último mostrado (arriba). */
   private fijar(y: number): void {
-    const min = this.dh - 175, max = 150 - mundoY(this.maxN - 1); // sy mayor = se ven niveles más altos
+    const min = this.dh - this.juego.abajo - 175, max = 150 + this.juego.arriba - mundoY(this.maxN - 1); // sy mayor = se ven niveles más altos
     this.contenido.y = Math.min(max, Math.max(min, y));
     this.refrescar();
   }
 
   layout(dh: number): void {
     this.dh = dh;
+    const j = this.juego;
+    this.cab.y = j.arriba;
+    this.cabIzq.x = j.izq;
+    const anchoF = Math.max(DW, j.dw), amp = j.apaisado ? Math.min(300, (j.der - j.izq) / 2 - 90) : 115;
+    if (anchoF !== this.anchoF || amp !== this.amp) { // girado o redimensionado: se rehace lo visible con las medidas nuevas
+      this.anchoF = anchoF; this.tileH = Math.round((anchoF * 1120) / 640); this.amp = amp;
+      for (const m of [this.tiles, this.nodos]) { for (const c of m.values()) c.destroy({ children: true }); m.clear(); }
+      this.actual = null; this.rango = '';
+    }
     if (!this.iniciado) { // primera vez: el nivel desbloqueado queda hacia abajo-medio de la pantalla
       this.iniciado = true;
       this.fijar(dh * 0.62 - mundoY(this.prog.desbloqueado - 1));
