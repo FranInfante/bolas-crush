@@ -1,0 +1,27 @@
+# Push a `stage` → el runner de la máquina de pruebas de Bolas prueba, construye la imagen y la arranca
+# (bolas-publicar, del servidor de Marcos). Producción la publica Marcos desde su PC, nunca desde aquí.
+name: Desplegar
+
+on:
+  push:
+    branches: [stage]
+
+concurrency:
+  group: desplegar-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: [self-hosted, bolas-stage]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pruebas
+        run: |
+          . despliegue/app.conf
+          npm ci --ignore-scripts --no-audit --no-fund
+          eval "$PRUEBAS"
+
+      - name: Imagen y publicación
+        run: sudo /usr/local/sbin/bolas-publicar stage "$GITHUB_WORKSPACE" "${GITHUB_SHA::7}"

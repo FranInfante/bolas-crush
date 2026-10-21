@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+.github
+.claude
+.remember
+.env*
+docs
+arte-fuente
+*.log
